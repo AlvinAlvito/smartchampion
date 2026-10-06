@@ -4,7 +4,7 @@ import { ArrowLeft, CalendarDays, ExternalLink, Users, Wallet } from "lucide-rea
 import { prisma } from "@/lib/prisma";
 import { requirePanel } from "@/lib/session";
 import { JENJANG_LABEL, PRODUCT_STATUS_LABEL } from "@/lib/constants";
-import { formatDate, formatRupiah } from "@/lib/utils";
+import { cn, formatDate, formatRupiah } from "@/lib/utils";
 import { Badge, QuotaBar, statusTone } from "@/components/ui";
 import { subjectVisual } from "@/components/product-card";
 import { ProductDialogButton } from "../product-form";
@@ -13,6 +13,46 @@ import { MeetingsPanel } from "./meetings-panel";
 import { PackagesPanel } from "./packages-panel";
 import { safeWaGroupUrl } from "@/lib/wa-group";
 import { WhatsAppIcon } from "@/components/whatsapp-icon";
+import { hasLoggedIn, loginInfo, LOGIN_TRACKING_SINCE, type LoginInfo } from "@/lib/last-login";
+
+const DAY = 86_400_000;
+const daysAgo = (d: Date) => (Date.now() - d.getTime()) / DAY;
+
+/** Login terakhir peserta (di bawah nama sekolah) */
+function LoginLine({ info }: { info?: LoginInfo }) {
+  const recent = info?.lastSeenAt ?? info?.lastLoginAt ?? null;
+  if (info?.lastLoginAt) {
+    const fresh = daysAgo(recent!) <= 7;
+    return (
+      <span className="flex items-center gap-1 text-[11px] text-navy-500">
+        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", fresh ? "bg-emerald-500" : "bg-amber-400")} />
+        <span className="truncate">
+          Login terakhir {formatDate(info.lastLoginAt, true)}
+          {info.lastSeenAt && info.lastSeenAt.getTime() - info.lastLoginAt.getTime() > 30 * 60_000 ? ` · aktif ${formatDate(info.lastSeenAt, true)}` : ""}
+        </span>
+      </span>
+    );
+  }
+  if (info?.lastSeenAt)
+    return (
+      <span className="flex items-center gap-1 text-[11px] text-navy-500">
+        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", daysAgo(info.lastSeenAt) <= 7 ? "bg-emerald-500" : "bg-amber-400")} />
+        <span className="truncate">Terakhir aktif {formatDate(info.lastSeenAt, true)}</span>
+      </span>
+    );
+  if (info?.lastActivityAt)
+    return (
+      <span className="flex items-center gap-1 text-[11px] text-navy-500" title={`Login sebelum ${LOGIN_TRACKING_SINCE} belum tercatat; ini aktivitas terakhirnya (worksheet/absen/games/feedback).`}>
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400" />
+        <span className="truncate">Aktivitas terakhir {formatDate(info.lastActivityAt, true)}</span>
+      </span>
+    );
+  return (
+    <span className="flex items-center gap-1 text-[11px] font-semibold text-rose-500" title={`Pencatatan login dimulai ${LOGIN_TRACKING_SINCE}; belum ada login maupun aktivitas (worksheet/absen mandiri/games/feedback) sejak itu.`}>
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400" /> Belum login sejak {LOGIN_TRACKING_SINCE}
+    </span>
+  );
+}
 
 export const metadata = { title: "Kelola Kelas" };
 export const dynamic = "force-dynamic";
@@ -40,6 +80,8 @@ export default async function ProductDetailPage({ params }: PageProps<"/admin/pr
   const { icon: Icon, gradient } = subjectVisual(product.bidang);
   const { sessions, materials, registrations, packages, ...values } = product;
   const vip = product.type === "PRIVATE";
+  const logins = await loginInfo(registrations.map((r) => r.userId));
+  const loggedIn = registrations.filter((r) => r.userId && hasLoggedIn(logins.get(r.userId))).length;
 
   return (
     <>
@@ -66,10 +108,16 @@ export default async function ProductDetailPage({ params }: PageProps<"/admin/pr
                 <span className="flex items-center gap-1.5">
                   <Wallet className="h-4 w-4" /> {formatRupiah(product.price)}/{product.priceUnit}
                 </span>
-                {product.startDate && (
-                  <span className="flex items-center gap-1.5">
-                    <CalendarDays className="h-4 w-4" /> mulai {formatDate(product.startDate)}
+                {sessions.length > 0 ? (
+                  <span className="flex items-center gap-1.5" title="Pertemuan pertama – pertemuan terakhir">
+                    <CalendarDays className="h-4 w-4" /> {formatDate(sessions[0].startAt)} – {formatDate(sessions[sessions.length - 1].endAt)}
                   </span>
+                ) : (
+                  product.startDate && (
+                    <span className="flex items-center gap-1.5">
+                      <CalendarDays className="h-4 w-4" /> mulai {formatDate(product.startDate)}
+                    </span>
+                  )
                 )}
                 {safeWaGroupUrl(product.waGroupUrl) ? (
                   <a
@@ -136,6 +184,15 @@ export default async function ProductDetailPage({ params }: PageProps<"/admin/pr
           ) : (
             <QuotaBar filled={registrations.length} min={product.minQuota} />
           )}
+          {registrations.length > 0 && (
+            <p className="text-xs text-navy-500">
+              <b className={loggedIn === registrations.length ? "text-emerald-600" : "text-navy-800"}>
+                {loggedIn}/{registrations.length}
+              </b>{" "}
+              peserta sudah pernah login
+              <span className="block text-[11px] text-navy-400">Pencatatan login dimulai {LOGIN_TRACKING_SINCE}; sebelumnya memakai jejak aktivitas.</span>
+            </p>
+          )}
           <ul className="max-h-[480px] space-y-1 overflow-y-auto">
             {registrations.map((r) => (
               <li key={r.id}>
@@ -149,6 +206,7 @@ export default async function ProductDetailPage({ params }: PageProps<"/admin/pr
                       {r.school}
                       {r.sessionsBought ? ` · ${r.sessionsDone}/${r.sessionsBought} pertemuan` : ""}
                     </span>
+                    <LoginLine info={r.userId ? logins.get(r.userId) : undefined} />
                   </span>
                 </Link>
               </li>

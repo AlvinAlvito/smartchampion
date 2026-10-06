@@ -123,7 +123,12 @@ export async function GET(request: NextRequest) {
         { header: "Owner", value: (l) => (l.ownerId ? (names.get(l.ownerId) ?? `User #${l.ownerId}`) : "Tanpa owner") },
         {
           header: "Owner dari pencocokan",
-          value: (l) => (l.attributedFrom ? "Ya (lead tanpa owner, dicocokkan dengan lead lain orang yang sama)" : ""),
+          value: (l) =>
+            l.paidBeforeLead
+              ? `Tidak dikreditkan: dibayar sebelum lead masuk ke admin${l.originalOwnerId ? ` (${names.get(l.originalOwnerId) ?? `User #${l.originalOwnerId}`})` : ""}`
+              : l.attributedFrom
+                ? "Ya (lead tanpa owner, dicocokkan dengan lead lain orang yang sama)"
+                : "",
           width: 30,
         },
         { header: "Invoice", value: (l) => l.invoiceId, width: 26 },

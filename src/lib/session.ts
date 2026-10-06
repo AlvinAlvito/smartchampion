@@ -9,6 +9,7 @@ import { prisma } from "./prisma";
 import { setFlash } from "./flash";
 
 export const SESSION_COOKIE = "pp_session";
+const SEEN_EVERY_MS = 10 * 60_000;
 const MAX_AGE = 60 * 60 * 24 * 7; // 7 hari
 
 export type SessionPayload = {
@@ -70,8 +71,12 @@ export const getSession = cache(async (): Promise<SessionPayload | null> => {
   const store = await cookies();
   const payload = await decryptSession(store.get(SESSION_COOKIE)?.value);
   if (!payload?.userId) return null;
-  const user = await prisma.user.findUnique({ where: { id: payload.userId }, select: { role: true, isActive: true, password: true, name: true } });
+  const user = await prisma.user.findUnique({ where: { id: payload.userId }, select: { role: true, isActive: true, password: true, name: true, lastSeenAt: true } });
   if (!user || !user.isActive || user.role !== payload.role || payload.pv !== passwordVersion(user.password)) return null;
+  // jejak "terakhir aktif" (sesi login berlaku 7 hari, jadi peserta bisa aktif tanpa login ulang); maks. sekali per 10 menit, bukan saat "masuk sebagai"
+  if (!payload.impersonatorId && (!user.lastSeenAt || Date.now() - user.lastSeenAt.getTime() > SEEN_EVERY_MS)) {
+    void prisma.user.update({ where: { id: payload.userId }, data: { lastSeenAt: new Date() } }).catch(() => undefined);
+  }
   if (payload.impersonatorId) {
     const imp = await prisma.user.findUnique({ where: { id: payload.impersonatorId }, select: { role: true, isActive: true } });
     if (!imp || !["ROOT", "ADMIN"].includes(imp.role) || !imp.isActive) return null;

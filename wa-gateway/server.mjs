@@ -7,7 +7,7 @@
  * - Sesi login WA disimpan di WA_AUTH_DIR/<id>/ (izin 700).
  *
  * Pengaman anti-blokir (akun WA tidak resmi rawan diblokir bila perilakunya seperti bot/spam):
- *  - hanya chat pribadi (grup, status, saluran diabaikan); tidak ada fitur broadcast;
+ *  - chat pribadi & grup (status/saluran diabaikan; nomor blast tetap hanya chat pribadi); tidak ada fitur broadcast;
  *  - antrean kirim per nomor: jeda acak 3–7 dtk antar pesan + indikator "mengetik…" sesuai panjang pesan;
  *  - batas kirim per menit / jam / hari (bisa diatur lewat env) dan tolak teks identik ke banyak chat (pola broadcast);
  *  - tidak tampil "online" terus (markOnlineOnConnect=false), tidak menarik riwayat chat lama;
@@ -181,7 +181,21 @@ function usage(s) {
 }
 
 function newSession(id) {
-  return { id, status: "DISCONNECTED", sock: null, qr: null, qrCount: 0, pairingCode: null, pairingPhone: null, retries: 0, queue: [], sending: false, sentLog: [], texts: [], cache: new Map(), selfSent: new Set(), stopped: false, restricted: false, reconnectTimer: null };
+  return { id, status: "DISCONNECTED", sock: null, qr: null, qrCount: 0, pairingCode: null, pairingPhone: null, retries: 0, queue: [], sending: false, sentLog: [], texts: [], cache: new Map(), selfSent: new Set(), stopped: false, restricted: false, reconnectTimer: null, groups: new Map() };
+}
+
+/** Nama grup (di-cache 6 jam per sesi; gagal → null) */
+async function groupName(s, sock, jid) {
+  const hit = s.groups?.get(jid);
+  if (hit && Date.now() - hit.at < 6 * 3600_000) return hit.name;
+  try {
+    const meta = await Promise.race([sock.groupMetadata(jid), sleep(10_000).then(() => null)]);
+    const name = meta?.subject ? String(meta.subject).slice(0, 120) : (hit?.name ?? null);
+    s.groups?.set(jid, { name, at: Date.now() });
+    return name;
+  } catch {
+    return hit?.name ?? null;
+  }
 }
 
 async function start(id, { pairingPhone } = {}) {
@@ -221,7 +235,8 @@ async function connect(s) {
     syncFullHistory: false,
     shouldSyncHistoryMessage: () => false,
     generateHighQualityLinkPreview: false,
-    shouldIgnoreJid: (jid) => isJidGroup(jid) || isJidBroadcast(jid) || isJidNewsletter(jid) || isJidStatusBroadcast(jid),
+    // grup hanya untuk nomor Chat WA; nomor blast tetap chat pribadi saja
+    shouldIgnoreJid: (jid) => (isJidGroup(jid) && isBlast(s.id)) || isJidBroadcast(jid) || isJidNewsletter(jid) || isJidStatusBroadcast(jid),
     // dipakai WA untuk kirim ulang pesan yang gagal didekripsi penerima
     getMessage: async (key) => s.cache.get(key.id),
   });
@@ -387,7 +402,11 @@ async function phoneOf(sock, jid, alt) {
 async function onMessage(s, sock, m) {
   const key = m.key;
   const jid = key?.remoteJid;
-  if (!jid || !m.message || isJidGroup(jid) || isJidBroadcast(jid) || isJidNewsletter(jid) || isJidStatusBroadcast(jid)) return;
+  if (!jid || !m.message || isJidBroadcast(jid) || isJidNewsletter(jid) || isJidStatusBroadcast(jid)) return;
+  if (isJidGroup(jid)) {
+    if (!isBlast(s.id)) await onGroupMessage(s, sock, m);
+    return;
+  }
   if (!isPnUser(jid) && !isLidUser(jid)) return;
   const ts = Number(m.messageTimestamp ?? 0) * 1000 || Date.now();
   if (Date.now() - ts > OLD_MSG_MS) return;
@@ -414,6 +433,36 @@ async function onMessage(s, sock, m) {
       text: String(d.text ?? "").slice(0, 8000),
       timestamp: ts,
       ...(media ? { media } : {}),
+    },
+  });
+}
+
+/** Pesan grup: jid grup + nama grup + pengirim (nama & nomor bila diketahui). Gambar grup tidak diunduh (hemat disk). */
+async function onGroupMessage(s, sock, m) {
+  const key = m.key;
+  const jid = key.remoteJid;
+  const ts = Number(m.messageTimestamp ?? 0) * 1000 || Date.now();
+  if (Date.now() - ts > OLD_MSG_MS) return;
+  if (key.fromMe && s.selfSent.has(key.id)) return;
+  const d = describe(m.message);
+  if (!d) return;
+  const participant = key.participant ?? null;
+  const senderPhone = key.fromMe ? null : participant ? await phoneOf(sock, participant, key.participantAlt) : null;
+  emit({
+    type: "message",
+    session: s.id,
+    message: {
+      id: key.id,
+      jid,
+      group: { name: await groupName(s, sock, jid) },
+      phone: null,
+      fromMe: !!key.fromMe,
+      pushName: null,
+      senderName: key.fromMe ? null : (m.pushName ?? null),
+      senderPhone,
+      type: d.type,
+      text: String(d.text ?? "").slice(0, 8000),
+      timestamp: ts,
     },
   });
 }
@@ -616,7 +665,7 @@ const server = http.createServer(async (req, res) => {
       if (!s || s.status !== "CONNECTED") return send(res, 409, { error: "WhatsApp belum tersambung." });
       const jid = String(body.jid ?? "");
       const text = String(body.text ?? "").trim();
-      if (!(isPnUser(jid) || isLidUser(jid))) return send(res, 400, { error: "Tujuan tidak valid (hanya chat pribadi)." });
+      if (!(isPnUser(jid) || isLidUser(jid) || (isJidGroup(jid) && !isBlast(id)))) return send(res, 400, { error: "Tujuan tidak valid." });
       if (!text || text.length > 4096) return send(res, 400, { error: "Pesan kosong atau terlalu panjang (maks 4.096 karakter)." });
       let image = null;
       if (isBlast(id) && body.image) {

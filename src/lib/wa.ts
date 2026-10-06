@@ -112,6 +112,10 @@ type MessageEvent = {
     timestamp: number;
     /** gambar tersimpan di gateway */
     media?: { ext: string; size?: number } | null;
+    /** pesan grup: nama grup + pengirim */
+    group?: { name: string | null } | null;
+    senderName?: string | null;
+    senderPhone?: string | null;
   };
 };
 type SentEvent = { type: "sent"; session: string; ref: string; id?: string; timestamp?: number };
@@ -125,6 +129,7 @@ const ACK_STATUS: Record<number, string> = { 2: "SENT", 3: "DELIVERED", 4: "READ
 const ACK_RANK: Record<string, number> = { PENDING: 0, FAILED: 0, SENT: 1, DELIVERED: 2, READ: 3 };
 const cut = (v: unknown, n: number) => (v == null ? null : String(v).slice(0, n));
 const validJid = (j: unknown) => typeof j === "string" && /^[0-9]{5,20}(:\d+)?@(s\.whatsapp\.net|lid)$/.test(j);
+const validGroupJid = (j: unknown) => typeof j === "string" && /^[0-9]{5,25}(-[0-9]{5,15})?@g\.us$/.test(j);
 
 export async function applyGatewayEvent(ev: GatewayEvent | { type: "tick" }) {
   // Blast WhatsApp: tick pengiriman & event sesi "blast-<id>" ditangani modul blast
@@ -158,6 +163,8 @@ export async function applyGatewayEvent(ev: GatewayEvent | { type: "tick" }) {
     });
     return true;
   }
+
+  if (ev.type === "message" && ev.message?.group) return applyGroupMessage(accountId, ev.message);
 
   if (ev.type === "message") {
     const m = ev.message;
@@ -248,4 +255,54 @@ export async function applyGatewayEvent(ev: GatewayEvent | { type: "tick" }) {
     return true;
   }
   return false;
+}
+
+/** Pesan grup WhatsApp: satu chat per grup (nama = nama grup), nama pengirim per pesan. Auto-balas AI tidak berlaku di grup. */
+async function applyGroupMessage(accountId: number, m: MessageEvent["message"]) {
+  if (!validGroupJid(m.jid) || !m.id) return false;
+  const type = TYPES.has(m.type) ? m.type : "text";
+  const groupName = cut(m.group?.name, 120);
+  let chat = await prisma.waChat.findFirst({ where: { accountId, jid: m.jid } });
+  if (!chat) {
+    try {
+      chat = await prisma.waChat.create({ data: { accountId, jid: m.jid, isGroup: true, name: groupName, hasIncoming: false } });
+    } catch {
+      chat = await prisma.waChat.findFirst({ where: { accountId, jid: m.jid } });
+      if (!chat) return false;
+    }
+  }
+  const ts = new Date(Number.isFinite(m.timestamp) ? m.timestamp : Date.now());
+  const senderPhone = m.senderPhone && /^\d{6,20}$/.test(m.senderPhone) ? m.senderPhone : null;
+  const senderName = cut(m.senderName, 120);
+  try {
+    await prisma.waMessage.create({
+      data: {
+        chatId: chat.id,
+        waId: cut(m.id, 100),
+        fromMe: !!m.fromMe,
+        type,
+        body: cut(m.text, 8000),
+        status: m.fromMe ? "SENT" : "RECEIVED",
+        senderName: m.fromMe ? null : senderName,
+        senderPhone: m.fromMe ? null : senderPhone,
+        timestamp: ts,
+      },
+    });
+  } catch {
+    return true; // duplikat
+  }
+  const newer = !chat.lastMessageAt || ts >= chat.lastMessageAt;
+  const who = m.fromMe ? "" : `${senderName || (senderPhone ? `+${senderPhone}` : "Anggota")}: `;
+  await prisma.waChat
+    .update({
+      where: { id: chat.id },
+      data: {
+        isGroup: true,
+        ...(groupName && groupName !== chat.name ? { name: groupName } : {}),
+        ...(newer ? { lastMessageAt: ts, lastMessageText: cut(who + waPreview(type, m.text), 255), lastFromMe: !!m.fromMe } : {}),
+        ...(m.fromMe ? { unread: 0 } : { unread: { increment: 1 }, hasIncoming: true }),
+      },
+    })
+    .catch(() => undefined);
+  return true;
 }

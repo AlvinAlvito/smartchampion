@@ -86,7 +86,7 @@ async function runAutoReply(chatId: number, messageId: number) {
   running.add(chatId);
   try {
     const chat = await prisma.waChat.findUnique({ where: { id: chatId }, include: { account: true } });
-    if (!chat || chat.aiPaused || !chat.hasIncoming || !chat.account.autoReply || chat.account.status !== "CONNECTED") return;
+    if (!chat || chat.isGroup || chat.aiPaused || !chat.hasIncoming || !chat.account.autoReply || chat.account.status !== "CONNECTED") return;
     const recent = await prisma.waMessage.findMany({
       where: { chatId },
       orderBy: { id: "desc" },

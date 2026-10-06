@@ -74,6 +74,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  /// login terakhir (form login / daftar); "masuk sebagai" oleh admin tidak dihitung
+  lastLoginAt DateTime?
+  /// terakhir membuka situs dengan sesi login (diperbarui maks. tiap 10 menit)
+  lastSeenAt  DateTime?
+
   registrations        Registration[]     @relation("RegistrationUser")
   handledRegistrations Registration[]     @relation("RegistrationAdmin")
   leads                Lead[]
@@ -537,6 +542,8 @@ model WaChat {
   lastMessageText String?   @db.VarChar(255)
   lastFromMe      Boolean   @default(false)
   unread          Int       @default(0)
+  /// grup WhatsApp (jid …@g.us); nama = nama grup, phone kosong
+  isGroup         Boolean   @default(false)
   /// pernah menerima pesan dari customer → boleh dibalas (tidak ada kirim ke nomor baru/broadcast)
   hasIncoming     Boolean   @default(false)
   /// auto-balas AI dijeda di chat ini (dialihkan ke admin / admin sedang menangani)
@@ -556,25 +563,28 @@ model WaChat {
 }
 
 model WaMessage {
-  id        Int      @id @default(autoincrement())
-  chatId    Int
+  id          Int      @id @default(autoincrement())
+  chatId      Int
   /// id pesan WhatsApp (kosong selama masih di antrean kirim)
-  waId      String?  @db.VarChar(100)
-  fromMe    Boolean
+  waId        String?  @db.VarChar(100)
+  fromMe      Boolean
   /// text | image | video | gif | document | voice | audio | sticker | location | contact | poll
-  type      String   @default("text") @db.VarChar(20)
-  body      String?  @db.Text
+  type        String   @default("text") @db.VarChar(20)
+  body        String?  @db.Text
   /// RECEIVED | PENDING | SENT | DELIVERED | READ | FAILED
-  status    String   @default("RECEIVED") @db.VarChar(12)
-  error     String?  @db.VarChar(255)
+  status      String   @default("RECEIVED") @db.VarChar(12)
+  error       String?  @db.VarChar(255)
   /// admin yang mengirim dari panel (kosong = dikirim langsung dari HP)
-  sentById  Int?
+  sentById    Int?
   /// dikirim otomatis oleh AI (auto-balas)
-  byAi      Boolean  @default(false)
+  byAi        Boolean  @default(false)
   /// gambar tersimpan di wa-gateway (ditampilkan lewat /api/admin/wa/media)
-  hasMedia  Boolean  @default(false)
-  timestamp DateTime
-  createdAt DateTime @default(now())
+  hasMedia    Boolean  @default(false)
+  /// pengirim di grup (nama WA & nomor bila diketahui)
+  senderName  String?  @db.VarChar(120)
+  senderPhone String?  @db.VarChar(30)
+  timestamp   DateTime
+  createdAt   DateTime @default(now())
 
   chat   WaChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
   sentBy User?  @relation(fields: [sentById], references: [id], onDelete: SetNull)

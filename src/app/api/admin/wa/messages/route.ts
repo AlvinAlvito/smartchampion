@@ -26,6 +26,8 @@ export async function GET(request: Request) {
     timestamp: true,
     byAi: true,
     hasMedia: true,
+    senderName: true,
+    senderPhone: true,
     sentBy: { select: { name: true } },
   } as const;
   const messages = after
@@ -45,6 +47,7 @@ export async function GET(request: Request) {
       id: chat.id,
       name: chat.name,
       phone: chat.phone,
+      isGroup: chat.isGroup,
       hasIncoming: chat.hasIncoming,
       unread: chat.unread,
       aiPaused: chat.aiPaused,

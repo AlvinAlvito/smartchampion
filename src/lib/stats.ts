@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "./prisma";
-import { attributeOwners, detectPaidAcrossData } from "./attribution";
+import { attributeOwners, creditedOwner, detectPaidAcrossData } from "./attribution";
 import type { ProductType } from "@prisma/client";
 import { FUNNEL_STATUSES, PRODUCT_TYPE_LABEL } from "./constants";
 import { inRange, prismaRange, type DateRange } from "./date-range";
@@ -172,9 +172,10 @@ export async function getProductSales(range: Pick<DateRange, "start" | "end">, o
       orderBy: [{ role: "asc" }, { id: "asc" }],
     }),
   ]);
-  // Lead Paid tanpa owner → dikreditkan ke admin pemilik lead lain orang yang sama (WA/email/nama mirip)
+  // Lead Paid tanpa owner → dikreditkan ke admin pemilik lead lain orang yang sama (WA/email/nama mirip) yang masuk sebelum pembayaran;
+  // pembayaran yang terjadi sebelum lead masuk ke admin tidak dihitung sebagai penjualan admin tsb (lihat creditedOwner)
   const attributed = await attributeOwners(allSold);
-  const withOwner = allSold.map((l) => ({ ...l, ownerId: attributed.get(l.id)?.ownerId ?? l.ownerId, attributedFrom: attributed.get(l.id) ?? null }));
+  const withOwner = allSold.map((l) => ({ ...l, ...creditedOwner(l, attributed), originalOwnerId: l.ownerId }));
   const sold = ownerId ? withOwner.filter((l) => l.ownerId === ownerId) : withOwner;
 
   const totals: Record<ProductKey, SalesCell & { missingNominal: number; byPaket: Map<string, number> }> = {

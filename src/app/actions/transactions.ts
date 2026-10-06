@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireStaff } from "@/lib/session";
+import { requirePanel } from "@/lib/session";
 import { limitAction } from "@/lib/security";
 import { getTransactionStatus, mapMidtransStatus, midtransEnabled } from "@/lib/midtrans";
 import { applyRegistrationStatus } from "@/lib/payments";
@@ -15,7 +15,7 @@ import type { ActionResult } from "@/lib/action-result";
  * (berguna bila webhook terlambat / gagal menjangkau server). Status lunas tidak pernah diturunkan.
  */
 export async function syncTransactionAction(registrationId: number): Promise<ActionResult> {
-  const me = await requireStaff();
+  const me = await requirePanel();
   const limited = await limitAction("tx-sync", me.userId, 60, 10 * 60_000);
   if (limited) return { error: limited };
   const reg = await prisma.registration.findUnique({

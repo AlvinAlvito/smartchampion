@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, CalendarDays, ChevronRight, FileText, Filter, RotateCcw, Search } from "lucide-react";
+import { BookOpen, CalendarDays, CalendarRange, ChevronRight, FileText, Filter, RotateCcw, Search } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requirePanel } from "@/lib/session";
 import { paidCountByProduct } from "@/lib/queries";
@@ -36,7 +36,12 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
       take,
     }),
   ]);
-  const paid = await paidCountByProduct(products.map((p) => p.id));
+  const [paid, spans] = await Promise.all([
+    paidCountByProduct(products.map((p) => p.id)),
+    // periode pelaksanaan: pertemuan pertama → pertemuan terakhir
+    prisma.classSession.groupBy({ by: ["productId"], where: { productId: { in: products.map((p) => p.id) } }, _min: { startAt: true }, _max: { endAt: true } }),
+  ]);
+  const spanOf = (id: number) => spans.find((x) => x.productId === id);
 
   return (
     <>
@@ -111,6 +116,7 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
                     <p className="mt-0.5 text-xs text-navy-400">
                       {JENJANG_LABEL[p.jenjang]} · {formatRupiah(p.price)}/{p.priceUnit}
                     </p>
+                    <ClassPeriod first={spanOf(p.id)?._min.startAt ?? null} last={spanOf(p.id)?._max.endAt ?? null} startDate={p.startDate} />
                   </div>
                   <ChevronRight className="h-5 w-5 shrink-0 text-navy-200 transition group-hover:translate-x-1 group-hover:text-brand-600" />
                 </div>
@@ -148,5 +154,37 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
       </SelectableGrid>
       <Pagination basePath="/admin/produk" searchParams={sp} page={page} perPage={PER_PAGE} total={total} noun="kelas" />
     </>
+  );
+}
+
+const fmt = (d: Date, year = true) =>
+  new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", ...(year ? { year: "numeric" } : {}), timeZone: "Asia/Jakarta" }).format(d);
+
+/** Periode pelaksanaan kelas: pertemuan pertama → terakhir (atau tanggal mulai bila jadwal belum dibuat) */
+function ClassPeriod({ first, last, startDate }: { first: Date | null; last: Date | null; startDate: Date | null }) {
+  const start = first ?? startDate;
+  if (!start)
+    return (
+      <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-amber-600">
+        <CalendarRange className="h-3.5 w-3.5" /> Tanggal pelaksanaan belum diatur
+      </p>
+    );
+  const end = first && last ? last : null;
+  const sameYear = end && fmt(start).slice(-4) === fmt(end).slice(-4);
+  return (
+    <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-brand-700" title={first ? "Pertemuan pertama – pertemuan terakhir" : "Tanggal mulai kelas (jadwal pertemuan belum dibuat)"}>
+      <CalendarRange className="h-3.5 w-3.5 shrink-0" />
+      {end ? (
+        fmt(start, true) === fmt(end, true) ? (
+          fmt(start)
+        ) : (
+          `${fmt(start, !sameYear)} – ${fmt(end)}`
+        )
+      ) : (
+        <>
+          Mulai {fmt(start)} <span className="font-normal text-navy-400">· jadwal belum dibuat</span>
+        </>
+      )}
+    </p>
   );
 }

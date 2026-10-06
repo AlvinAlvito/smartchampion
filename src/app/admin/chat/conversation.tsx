@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowLeft, Bot, Check, CheckCheck, Clock, Eye, Hand, LoaderCircle, Play, SendHorizonal, TriangleAlert, UserSearch } from "lucide-react";
+import { ArrowLeft, Bot, Check, CheckCheck, Clock, Eye, Hand, LoaderCircle, Play, SendHorizonal, TriangleAlert, UserSearch, Users } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { WA_AI_FOOTER, WA_MAX_TEXT, formatWaPhone, waPreview } from "@/lib/wa-shared";
@@ -18,12 +18,16 @@ type Msg = {
   timestamp: string;
   byAi: boolean;
   hasMedia: boolean;
+  /** pengirim pesan di grup */
+  senderName?: string | null;
+  senderPhone?: string | null;
   sentBy: { name: string } | null;
 };
 type ChatInfo = {
   id: number;
   name: string | null;
   phone: string | null;
+  isGroup?: boolean;
   hasIncoming: boolean;
   unread: number;
   aiPaused: boolean;
@@ -31,6 +35,14 @@ type ChatInfo = {
   autoReply: boolean;
 };
 type Resp = { chat: ChatInfo; messages: Msg[]; statuses: { id: number; status: string; error: string | null }[]; hasMore: boolean };
+
+/** warna nama pengirim di grup (tetap per orang) */
+const SENDER_COLORS = ["text-emerald-700", "text-sky-700", "text-fuchsia-700", "text-amber-700", "text-rose-700", "text-indigo-700", "text-teal-700", "text-orange-700"];
+function senderColor(key: string) {
+  let h = 0;
+  for (const ch of key) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return SENDER_COLORS[h % SENDER_COLORS.length];
+}
 
 const time = (d: string) => new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }).format(new Date(d));
 const dayKey = (d: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date(d));
@@ -207,7 +219,7 @@ export function Conversation({
     toast.success(paused ? "AI dijeda di chat ini — Anda yang membalas." : "AI kembali membalas chat ini otomatis.");
   };
 
-  const title = chat?.name || formatWaPhone(chat?.phone) || "Chat";
+  const title = chat?.name || formatWaPhone(chat?.phone) || (chat?.isGroup ? "Grup WhatsApp" : "Chat");
   const canReply = !readOnly && connected && !!chat?.hasIncoming;
 
   return (
@@ -216,19 +228,30 @@ export function Conversation({
         <button className="btn-icon lg:hidden" onClick={onBack} aria-label="Kembali ke daftar chat">
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-linear-to-br from-emerald-400 to-teal-600 text-sm font-bold text-white">
-          {(chat?.name || "?").trim().charAt(0).toUpperCase()}
+        <span
+          className={cn(
+            "grid h-10 w-10 shrink-0 place-items-center rounded-full bg-linear-to-br text-sm font-bold text-white",
+            chat?.isGroup ? "from-sky-400 to-navy-600" : "from-emerald-400 to-teal-600",
+          )}
+        >
+          {chat?.isGroup ? <Users className="h-5 w-5" /> : (chat?.name || "?").trim().charAt(0).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate font-bold text-navy-900">{title}</p>
-          {chat?.phone && chat.name && <p className="truncate text-xs text-navy-400">{formatWaPhone(chat.phone)}</p>}
+          {chat?.isGroup ? (
+            <p className="truncate text-xs text-sky-700">Grup WhatsApp · auto-balas AI tidak aktif di grup</p>
+          ) : (
+            chat?.phone && chat.name && <p className="truncate text-xs text-navy-400">{formatWaPhone(chat.phone)}</p>
+          )}
         </div>
-        <button className="btn-secondary btn-sm xl:hidden" onClick={onShowCustomer}>
-          <UserSearch className="h-3.5 w-3.5" /> Data customer
-        </button>
+        {!chat?.isGroup && (
+          <button className="btn-secondary btn-sm xl:hidden" onClick={onShowCustomer}>
+            <UserSearch className="h-3.5 w-3.5" /> Data customer
+          </button>
+        )}
       </div>
 
-      {chat?.autoReply && (
+      {chat?.autoReply && !chat.isGroup && (
         <div
           className={cn(
             "flex flex-wrap items-center gap-2 border-b px-3 py-2 text-xs font-semibold",
@@ -300,6 +323,12 @@ export function Conversation({
                     m.status === "FAILED" && "from-rose-500 to-rose-700",
                   )}
                 >
+                  {chat?.isGroup && !m.fromMe && (
+                    <p className={cn("mb-0.5 truncate text-xs font-bold", senderColor(m.senderPhone || m.senderName || "?"))}>
+                      {m.senderName || (m.senderPhone ? formatWaPhone(m.senderPhone) : "Anggota grup")}
+                      {m.senderName && m.senderPhone && <span className="ml-1 font-normal text-navy-400">{formatWaPhone(m.senderPhone)}</span>}
+                    </p>
+                  )}
                   {m.type === "image" && m.hasMedia ? (
                     <ChatImage id={m.id} fromMe={m.fromMe} />
                   ) : (

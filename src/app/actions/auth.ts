@@ -44,6 +44,8 @@ export async function loginAction(_prev: ActionResult | undefined, formData: For
   resetRate(`login-email:${email}`);
   if (!user.isActive) return { error: "Akun Anda dinonaktifkan. Hubungi admin." };
 
+  const now = new Date();
+  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: now, lastSeenAt: now } }).catch(() => undefined);
   await createSession({ userId: user.id, role: user.role, name: user.name });
   await setFlash("success", `Selamat datang kembali, ${user.name.split(" ")[0]}! 👋`);
 
@@ -87,6 +89,8 @@ export async function registerAction(_prev: ActionResult | undefined, formData: 
       ...student.data,
       password: await bcrypt.hash(d.password, 10),
       role: "PESERTA",
+      lastLoginAt: new Date(),
+      lastSeenAt: new Date(),
     },
   });
   await createSession({ userId: user.id, role: user.role, name: user.name });

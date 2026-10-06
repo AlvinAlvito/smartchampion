@@ -17,6 +17,7 @@ import {
   TriangleAlert,
   Unplug,
   X,
+  Users,
 } from "lucide-react";
 import { Badge, EmptyState } from "@/components/ui";
 import { ConfirmDialog } from "@/components/modal";
@@ -61,6 +62,7 @@ type ChatItem = {
   id: number;
   name: string | null;
   phone: string | null;
+  isGroup?: boolean;
   lastMessageAt: string;
   lastMessageText: string | null;
   lastFromMe: boolean;
@@ -104,6 +106,8 @@ export function ChatApp({
   const [unreadTotal, setUnreadTotal] = useState(0);
   const [q, setQ] = useState("");
   const [unreadOnly, setUnreadOnly] = useState(false);
+  /** "" semua · "private" chat pribadi · "group" grup */
+  const [kind, setKind] = useState<"" | "private" | "group">("");
   const [chatId, setChatId] = useState<number | null>(null);
   const [customerOpen, setCustomerOpen] = useState(false);
   const [confirmOff, setConfirmOff] = useState(false);
@@ -148,6 +152,7 @@ export function ChatApp({
     const params = new URLSearchParams(acctQs);
     if (q.trim()) params.set("q", q.trim());
     if (unreadOnly) params.set("unread", "1");
+    if (kind) params.set("kind", kind);
     const r = await getJson<{ chats: ChatItem[]; unreadTotal: number }>(`/api/admin/wa/chats?${params}`);
     setChats(r.chats);
     setUnreadTotal(r.unreadTotal);
@@ -155,7 +160,7 @@ export function ChatApp({
 
   // koneksi: cepat saat menunggu QR, santai saat sudah terhubung
   usePoll(loadConn, connected ? 20_000 : 3000, [accountId, connected]);
-  usePoll(loadChats, hasAccount ? 4000 : null, [accountId, hasAccount, q, unreadOnly]);
+  usePoll(loadChats, hasAccount ? 4000 : null, [accountId, hasAccount, q, unreadOnly, kind]);
 
   const pickAccount = (id: number | null) => {
     setAccountId(id);
@@ -348,21 +353,17 @@ export function ChatApp({
                     aria-label="Cari chat"
                   />
                 </div>
-                <div className="flex gap-1.5 text-xs">
+                <div className="flex flex-wrap gap-1.5 text-xs">
                   {[
-                    { v: false, l: "Semua" },
-                    {
-                      v: true,
-                      l: `Belum dibaca${unreadTotal ? ` (${unreadTotal})` : ""}`,
-                    },
+                    { k: "all", l: "Semua", on: !unreadOnly && !kind, set: () => (setUnreadOnly(false), setKind("")) },
+                    { k: "unread", l: `Belum dibaca${unreadTotal ? ` (${unreadTotal})` : ""}`, on: unreadOnly, set: () => setUnreadOnly(!unreadOnly) },
+                    { k: "private", l: "Pribadi", on: kind === "private", set: () => setKind(kind === "private" ? "" : "private") },
+                    { k: "group", l: "Grup", on: kind === "group", set: () => setKind(kind === "group" ? "" : "group") },
                   ].map((o) => (
                     <button
-                      key={o.l}
-                      onClick={() => setUnreadOnly(o.v)}
-                      className={cn(
-                        "rounded-full px-3 py-1 font-semibold",
-                        unreadOnly === o.v ? "bg-brand-600 text-white" : "bg-navy-50 text-navy-600 hover:bg-brand-50",
-                      )}
+                      key={o.k}
+                      onClick={o.set}
+                      className={cn("rounded-full px-3 py-1 font-semibold", o.on ? "bg-brand-600 text-white" : "bg-navy-50 text-navy-600 hover:bg-brand-50")}
                     >
                       {o.l}
                     </button>
@@ -380,7 +381,7 @@ export function ChatApp({
                 {chats?.length === 0 && (
                   <li className="p-6 text-center text-sm text-navy-400">
                     <MessageCircle className="mx-auto mb-2 h-8 w-8 text-navy-200" />
-                    {q || unreadOnly ? "Tidak ada chat yang cocok." : connected ? "Belum ada chat. Pesan masuk akan muncul di sini." : "Belum ada chat."}
+                    {q || unreadOnly || kind ? (kind === "group" && !q && !unreadOnly ? "Belum ada pesan grup. Grup muncul setelah ada pesan baru di grup tersebut." : "Tidak ada chat yang cocok.") : connected ? "Belum ada chat. Pesan masuk akan muncul di sini." : "Belum ada chat."}
                   </li>
                 )}
                 {chats?.map((c) => (
@@ -395,12 +396,20 @@ export function ChatApp({
                         chatId === c.id ? "bg-brand-50" : "hover:bg-navy-50/60",
                       )}
                     >
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-linear-to-br from-emerald-400 to-teal-600 text-sm font-bold text-white">
-                        {(c.name || "?").trim().charAt(0).toUpperCase()}
+                      <span
+                        className={cn(
+                          "grid h-10 w-10 shrink-0 place-items-center rounded-full bg-linear-to-br text-sm font-bold text-white",
+                          c.isGroup ? "from-sky-400 to-navy-600" : "from-emerald-400 to-teal-600",
+                        )}
+                      >
+                        {c.isGroup ? <Users className="h-5 w-5" /> : (c.name || "?").trim().charAt(0).toUpperCase()}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center justify-between gap-2">
-                          <span className="truncate text-sm font-bold text-navy-900">{c.name || formatWaPhone(c.phone) || "Tanpa nama"}</span>
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="truncate text-sm font-bold text-navy-900">{c.name || formatWaPhone(c.phone) || (c.isGroup ? "Grup WhatsApp" : "Tanpa nama")}</span>
+                            {c.isGroup && <span className="shrink-0 rounded bg-sky-100 px-1 text-[10px] font-bold text-sky-700">Grup</span>}
+                          </span>
                           <span className={cn("shrink-0 text-[11px]", c.unread ? "font-bold text-emerald-600" : "text-navy-400")}>{when(c.lastMessageAt)}</span>
                         </span>
                         <span className="flex items-center justify-between gap-2">
@@ -464,7 +473,16 @@ export function ChatApp({
                     <X className="h-4 w-4" />
                   </button>
                 )}
-                <CustomerPanel key={chatId} chatId={chatId} />
+                {chats?.find((c) => c.id === chatId)?.isGroup ? (
+                  <div className="p-5 text-sm text-navy-500">
+                    <p className="mb-1 flex items-center gap-2 font-bold text-navy-800">
+                      <Users className="h-4 w-4 text-sky-600" /> Grup WhatsApp
+                    </p>
+                    Data customer hanya untuk chat pribadi. Di grup, nama & nomor pengirim tampil di atas setiap pesan. Auto-balas AI tidak membalas di grup.
+                  </div>
+                ) : (
+                  <CustomerPanel key={chatId} chatId={chatId} />
+                )}
               </aside>
             )}
           </div>

@@ -129,13 +129,14 @@ export async function collectWorkload(ownerId: number, date: string, year: numbe
     waitingList: [],
   };
   if (account) {
-    const waitingWhere = { accountId: account.id, hasIncoming: true, lastFromMe: false, lastMessageAt: { gte: since7 } };
+    // hanya chat pribadi customer (grup WhatsApp tidak dihitung sebagai chat yang menunggu balasan)
+    const waitingWhere = { accountId: account.id, isGroup: false, hasIncoming: true, lastFromMe: false, lastMessageAt: { gte: since7 } };
     const [waiting, waitingOld, unread, replied, newChats, waitingRows] = await Promise.all([
       prisma.waChat.count({ where: waitingWhere }),
       prisma.waChat.count({ where: { ...waitingWhere, lastMessageAt: { gte: since7, lt: new Date(Date.now() - 24 * 3600_000) } } }),
-      prisma.waChat.aggregate({ where: { accountId: account.id }, _sum: { unread: true } }),
-      prisma.waMessage.count({ where: { fromMe: true, chat: { accountId: account.id }, timestamp: { gte: weekStart, lt: weekEnd } } }),
-      prisma.waChat.count({ where: { accountId: account.id, createdAt: { gte: weekStart, lt: weekEnd } } }),
+      prisma.waChat.aggregate({ where: { accountId: account.id, isGroup: false }, _sum: { unread: true } }),
+      prisma.waMessage.count({ where: { fromMe: true, chat: { accountId: account.id, isGroup: false }, timestamp: { gte: weekStart, lt: weekEnd } } }),
+      prisma.waChat.count({ where: { accountId: account.id, isGroup: false, createdAt: { gte: weekStart, lt: weekEnd } } }),
       prisma.waChat.findMany({ where: waitingWhere, orderBy: { lastMessageAt: "asc" }, take: 6, select: { name: true, phone: true, lastMessageText: true } }),
     ]);
     chat = {

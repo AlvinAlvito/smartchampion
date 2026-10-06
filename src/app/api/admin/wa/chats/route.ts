@@ -21,6 +21,7 @@ export async function GET(request: Request) {
     accountId: account.id,
     lastMessageAt: { not: null },
     ...(sp.get("unread") === "1" ? { unread: { gt: 0 } } : {}),
+    ...(sp.get("kind") === "group" ? { isGroup: true } : sp.get("kind") === "private" ? { isGroup: false } : {}),
     ...(q
       ? {
           OR: [
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
       where,
       orderBy: { lastMessageAt: "desc" },
       take: 80,
-      select: { id: true, name: true, phone: true, lastMessageAt: true, lastMessageText: true, lastFromMe: true, unread: true, aiPaused: true },
+      select: { id: true, name: true, phone: true, isGroup: true, lastMessageAt: true, lastMessageText: true, lastFromMe: true, unread: true, aiPaused: true },
     }),
     prisma.waChat.aggregate({ where: { accountId: account.id }, _sum: { unread: true } }),
   ]);

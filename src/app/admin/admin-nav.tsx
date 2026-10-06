@@ -190,7 +190,7 @@ export function AdminShell({ user, children, initialCollapsed = false }: { user:
     user.role === "ROOT" || user.role === "SUPERADMIN"
       ? [...ITEMS.map((it) => (it.superLabel ? { ...it, label: it.superLabel } : it)), { href: "/admin/users", label: "Pengguna", icon: Users }]
       : user.role === "SMARTCHAMPION"
-        ? ITEMS.filter((it) => !it.sales || ["/admin/leads", "/admin/jobdesk", "/admin/performa"].includes(it.href)).map((it) =>
+        ? ITEMS.filter((it) => !it.sales || ["/admin/leads", "/admin/jobdesk", "/admin/performa", "/admin/transaksi"].includes(it.href)).map((it) =>
             it.href === "/admin/performa" ? { ...it, label: "Performa Saya" } : it,
           )
         : ITEMS.map((it) => (it.href === "/admin/performa" ? { ...it, label: "Performa Saya" } : it));

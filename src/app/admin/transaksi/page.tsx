@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CircleCheck, CircleDollarSign, CircleX, ExternalLink, FileSpreadsheet, Filter, Hourglass, Percent, Receipt, RotateCcw, Search } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { requireStaff } from "@/lib/session";
+import { requirePanel } from "@/lib/session";
 import { PRODUCT_TYPE_LABEL, REG_STATUS_LABEL } from "@/lib/constants";
 import { buildTransactionWhere, paymentLabel, readTransactionFilters, transactionFiltersToQuery, WEB_TRANSACTION } from "@/lib/transaction-filters";
 import { cn, formatDate, formatRupiah } from "@/lib/utils";
@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * (tanpa data impor Google Form & aktivasi manual Master Lead).
  */
 export default async function TransactionsPage({ searchParams }: PageProps<"/admin/transaksi">) {
-  const session = await requireStaff();
+  const session = await requirePanel();
   const readOnly = session.role === "SUPERADMIN";
   const sp = await searchParams;
   const get = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");

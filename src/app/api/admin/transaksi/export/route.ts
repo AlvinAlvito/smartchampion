@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, isStaff } from "@/lib/session";
+import { getSession, isPanel } from "@/lib/session";
 import { PRODUCT_TYPE_LABEL, REG_STATUS_LABEL } from "@/lib/constants";
 import { buildTransactionWhere, paymentLabel, readTransactionFilters } from "@/lib/transaction-filters";
 import { buildWorkbook, FMT, todayStamp, xlsxResponse } from "@/lib/excel";
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const session = await getSession();
   const readOnly = blockReadOnlyDownload(session?.role);
   if (readOnly) return readOnly;
-  if (!session || !isStaff(session.role)) return NextResponse.json({ message: "unauthorized" }, { status: 401 });
+  if (!session || !isPanel(session.role)) return NextResponse.json({ message: "unauthorized" }, { status: 401 });
   const limited = guardRoute(`export:${session.userId}`, 20, 60000);
   if (limited) return limited;
 

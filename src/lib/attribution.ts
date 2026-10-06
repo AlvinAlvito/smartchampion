@@ -124,9 +124,13 @@ export async function detectPaidAcrossData(cohort: LeadRow[]) {
   return found;
 }
 
+/** toleransi pencatatan: lead boleh diinput admin s.d. 3 hari setelah customer membayar */
+const CREDIT_GRACE_MS = 3 * 86_400_000;
+
 /**
- * Penjualan (lead Paid) yang belum punya owner → dikreditkan ke admin pemilik lead lain milik orang yang sama
- * (lead yang masuk paling akhir sebelum tanggal bayar; bila tidak ada, yang paling awal).
+ * Penjualan (lead Paid) yang belum punya owner → dikreditkan ke admin pemilik lead lain milik orang yang sama,
+ * HANYA bila lead admin itu sudah masuk sebelum tanggal bayar (lead yang paling akhir sebelum bayar).
+ * Lead admin yang baru masuk SETELAH pembayaran tidak mendapat kredit (penjualan itu terjadi tanpa admin tsb).
  */
 export async function attributeOwners<T extends LeadRow>(sold: T[]) {
   const { ownedLeadIndex, leadIdentity } = await loadIdentityData();
@@ -138,9 +142,26 @@ export async function attributeOwners<T extends LeadRow>(sold: T[]) {
     const paid = (l.tanggalBayar ?? l.tanggalMasuk).getTime();
     const strongest = hits[0].match.by === "nama" ? hits[0].match.score : 2;
     const top = hits.filter((h) => (h.match.by === "nama" ? h.match.score : 2) === strongest);
-    const before = top.filter((h) => h.item.tanggalMasuk.getTime() <= paid).sort((a, b) => b.item.tanggalMasuk.getTime() - a.item.tanggalMasuk.getTime());
-    const pick = before[0] ?? [...top].sort((a, b) => a.item.tanggalMasuk.getTime() - b.item.tanggalMasuk.getTime())[0];
+    const before = top.filter((h) => h.item.tanggalMasuk.getTime() <= paid + CREDIT_GRACE_MS).sort((a, b) => b.item.tanggalMasuk.getTime() - a.item.tanggalMasuk.getTime());
+    const pick = before[0];
+    if (!pick) continue; // semua lead orang ini di admin masuk setelah pembayaran → tetap "Tanpa owner"
     out.set(l.id, { ownerId: pick.item.ownerId!, fromLeadId: pick.item.id, match: pick.match });
   }
   return out;
+}
+
+/**
+ * Owner yang berhak atas sebuah penjualan (lead Paid):
+ * - owner lead, atau owner hasil pencocokan identitas (attributeOwners);
+ * - TIDAK dikreditkan bila tanggal bayar lebih awal dari tanggal lead masuk ke admin (> 3 hari) — artinya customer
+ *   sudah membayar sebelum ditangani admin (mis. peserta lama dari Google Form yang kemudian chat lagi).
+ */
+export function creditedOwner(
+  l: { id: number; ownerId: number | null; tanggalMasuk: Date; tanggalBayar: Date | null },
+  attributed: Map<number, { ownerId: number; fromLeadId: number; match: Match }>,
+) {
+  const a = attributed.get(l.id) ?? null;
+  const ownerId = a?.ownerId ?? l.ownerId;
+  const paidBeforeLead = ownerId != null && !!l.tanggalBayar && l.tanggalBayar.getTime() < l.tanggalMasuk.getTime() - CREDIT_GRACE_MS;
+  return paidBeforeLead ? { ownerId: null, attributedFrom: null, paidBeforeLead: true } : { ownerId, attributedFrom: a, paidBeforeLead: false };
 }

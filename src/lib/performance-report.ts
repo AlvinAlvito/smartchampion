@@ -4,7 +4,7 @@ import { prisma } from "./prisma";
 import type { SessionPayload } from "./session";
 import { readDateRange, type DateRange } from "./date-range";
 import { getAdminPerformance, getProductSales } from "./stats";
-import { attributeOwners, detectPaidAcrossData } from "./attribution";
+import { attributeOwners, creditedOwner, detectPaidAcrossData } from "./attribution";
 import { FUNNEL_STATUSES } from "./constants";
 
 /**
@@ -146,7 +146,7 @@ export async function buildPerformanceReport(range: DateRange, scope: ReportScop
   const attributed = await attributeOwners(paidLeadsRaw);
   const paidLeads = paidLeadsRaw
     .map((l) => {
-      const ownerId = attributed.get(l.id)?.ownerId ?? l.ownerId;
+      const { ownerId } = creditedOwner(l, attributed);
       return { ...l, ownerId, owner: ownerId ? { name: staffName.get(ownerId) ?? `User #${ownerId}` } : null };
     })
     .filter((l) => !scope.ownerId || l.ownerId === scope.ownerId);

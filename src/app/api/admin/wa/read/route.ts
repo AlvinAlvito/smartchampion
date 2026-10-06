@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       select: { waId: true },
     });
     await prisma.waChat.update({ where: { id: chat.id }, data: { unread: 0 } });
-    if (unread.length && chat.account.status === "CONNECTED") {
+    if (unread.length && chat.account.status === "CONNECTED" && !chat.isGroup) {
       await gateway(`/sessions/${gatewayId(chat.accountId)}/read`, { jid: chat.jid, ids: unread.map((m) => m.waId) });
     }
   }
