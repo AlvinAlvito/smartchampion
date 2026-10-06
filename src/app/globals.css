@@ -1,26 +1,443 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* ============================================================
+   Design tokens — Smart Champion: putih, kuning (Smarty), biru (Champy)
+   brand = biru #1A6F9F · navy = biru tua (teks & latar gelap) · sun = kuning #F9D014
+   ============================================================ */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-navy-50: #f1f6fa;
+  --color-navy-100: #dde9f2;
+  --color-navy-200: #bfd3e3;
+  --color-navy-300: #93b3cc;
+  --color-navy-400: #5f8bab;
+  --color-navy-500: #3e6c8f;
+  --color-navy-600: #2d5676;
+  --color-navy-700: #22445f;
+  --color-navy-800: #183349;
+  --color-navy-900: #0f2436;
+  --color-navy-950: #081625;
+
+  --color-brand-50: #eef8fd;
+  --color-brand-100: #d8eef9;
+  --color-brand-200: #b4dcf1;
+  --color-brand-300: #84c3e5;
+  --color-brand-400: #4fa4d3;
+  --color-brand-500: #2e89bc;
+  --color-brand-600: #1a6f9f;
+  --color-brand-700: #14577d;
+  --color-brand-800: #134a69;
+  --color-brand-900: #133e57;
+  --color-brand-950: #0b2638;
+
+  --color-sun-50: #fffbe6;
+  --color-sun-100: #fff4bf;
+  --color-sun-200: #ffeb8f;
+  --color-sun-300: #ffe56a;
+  --color-sun-400: #fcd83a;
+  --color-sun-500: #f9d014;
+  --color-sun-600: #d9b300;
+  --color-sun-700: #a88800;
+  --color-sun-800: #7a6300;
+  --color-sun-900: #574700;
+
+  --color-accent-400: #ffe56a;
+  --color-accent-500: #f9d014;
+
+  --font-sans: var(--font-jakarta), var(--font-geist-sans);
+  --font-display: var(--font-carter), var(--font-jakarta), sans-serif;
   --font-mono: var(--font-geist-mono);
+
+  --animate-fade-up: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.4s ease-out both;
+  --animate-scale-in: scale-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-float-slow: float 9s ease-in-out infinite;
+  --animate-blob: blob 14s ease-in-out infinite;
+  --animate-gradient: gradient-x 8s ease infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-pop: pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-shake: shake 0.45s ease-in-out both;
+  --animate-slide-up: slide-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-slide-in-right: slide-in-right 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-progress: progress 1.2s ease-in-out infinite;
+  --animate-spin-slow: spin 12s linear infinite;
+  --animate-grid-pan: grid-pan 24s linear infinite;
+  --animate-twinkle: twinkle 3.2s ease-in-out infinite;
+  --animate-beam: beam 10s ease-in-out infinite;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* jaring hero bergeser pelan; 176px = kelipatan 44px → berulang tanpa loncatan */
+@keyframes grid-pan {
+  from { background-position: 0 0, 0 0, 0 0, 0 0; }
+  to { background-position: 176px 176px, 176px 176px, 176px 176px, 176px 176px; }
+}
+@keyframes twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.6) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1) rotate(20deg); }
+}
+@keyframes beam {
+  0% { transform: translateX(-120%) rotate(12deg); opacity: 0; }
+  15% { opacity: 1; }
+  55% { opacity: 1; }
+  70%, 100% { transform: translateX(320%) rotate(12deg); opacity: 0; }
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+@keyframes blob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(40px, -30px) scale(1.12); }
+  66% { transform: translate(-30px, 25px) scale(0.92); }
+}
+@keyframes gradient-x {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+@keyframes shimmer {
+  from { background-position: -400px 0; }
+  to { background-position: 400px 0; }
+}
+@keyframes pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(110%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes progress {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(420px) rotate(720deg); opacity: 0; }
+}
+
+html {
+  scroll-behavior: smooth;
+  /* Tampilan seperti aplikasi di HP: tanpa zoom ketuk-ganda, tanpa geser ke samping, tanpa pantulan tarik */
+  touch-action: manipulation;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+html,
+body {
+  /* clip (bukan hidden) agar position: sticky tetap berfungsi */
+  overflow-x: clip;
+}
+body {
+  background: #f7fafc;
+  color: #0f2436;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+::selection {
+  background: #ffe56a;
+  color: #0f2436;
+}
+
+/* ============================================================
+   Utilities (dipakai di seluruh halaman)
+   ============================================================ */
+@utility container-page {
+  @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+}
+@utility card {
+  @apply rounded-3xl border border-navy-100/70 bg-white p-5 shadow-[0_1px_2px_rgba(15,36,54,0.04),0_8px_24px_-12px_rgba(15,36,54,0.12)];
+}
+@utility card-hover {
+  @apply transition duration-300 hover:-translate-y-1 hover:border-sun-300 hover:shadow-[0_18px_40px_-18px_rgba(26,111,159,0.4)];
+}
+@utility glass {
+  @apply border border-white/15 bg-white/10 backdrop-blur-xl;
+}
+@utility text-gradient {
+  @apply bg-linear-to-r from-sun-300 via-sun-400 to-brand-300 bg-clip-text text-transparent;
+}
+@utility text-gradient-dark {
+  @apply bg-linear-to-r from-brand-800 via-brand-600 to-brand-500 bg-clip-text text-transparent;
+}
+@utility bg-hero {
+  background-image:
+    radial-gradient(55% 75% at 88% 8%, rgba(249, 208, 20, 0.32) 0%, transparent 60%),
+    radial-gradient(50% 70% at 8% 92%, rgba(106, 183, 225, 0.3) 0%, transparent 60%),
+    linear-gradient(135deg, #0b2638 0%, #14577d 50%, #1a6f9f 100%);
+}
+/* latar terang ala landing Smart Champion: putih → krem kuning dengan semburat biru */
+@utility bg-sunny {
+  background-image:
+    radial-gradient(45% 60% at 92% 12%, rgba(191, 231, 250, 0.7) 0%, transparent 60%),
+    radial-gradient(50% 60% at 5% 95%, rgba(255, 229, 106, 0.35) 0%, transparent 60%),
+    linear-gradient(135deg, #ffffff 0%, #fbfdff 45%, #fff7d6 100%);
+}
+/* jaring hero: garis putih halus + garis kuning besar */
+@utility bg-grid-hero {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(rgba(249, 208, 20, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(249, 208, 20, 0.16) 1px, transparent 1px);
+  background-size: 44px 44px, 44px 44px, 176px 176px, 176px 176px;
+}
+@utility bg-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+@utility bg-dots {
+  background-image: radial-gradient(rgba(26, 111, 159, 0.12) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+@utility btn {
+  @apply relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-2xl px-4 py-2.5 text-sm font-semibold transition duration-200 select-none active:scale-[0.97] disabled:pointer-events-none disabled:opacity-60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-200;
+}
+@utility btn-primary {
+  @apply btn bg-linear-to-r from-sun-400 via-sun-500 to-sun-600 bg-[length:200%_100%] bg-left font-bold text-brand-900 shadow-[0_8px_20px_-8px_rgba(217,179,0,0.75)] hover:bg-right hover:shadow-[0_12px_28px_-10px_rgba(217,179,0,0.85)];
+}
+@utility btn-secondary {
+  @apply btn border border-brand-200 bg-white text-brand-700 hover:border-brand-300 hover:bg-brand-50;
+}
+@utility btn-ghost {
+  @apply btn text-navy-700 hover:bg-navy-50;
+}
+@utility btn-danger {
+  @apply btn bg-linear-to-r from-rose-500 to-rose-600 text-white shadow-[0_8px_20px_-10px_rgba(225,29,72,0.8)] hover:from-rose-600 hover:to-rose-700;
+}
+@utility btn-light {
+  @apply btn bg-white text-brand-800 shadow-lg hover:bg-sun-50;
+}
+@utility btn-outline-light {
+  @apply btn border border-white/30 text-white hover:bg-white/10;
+}
+@utility btn-sm {
+  @apply rounded-xl! px-3! py-1.5! text-xs!;
+}
+@utility btn-icon {
+  @apply inline-flex h-9 w-9 items-center justify-center rounded-xl text-navy-500 transition hover:bg-brand-50 hover:text-brand-700 active:scale-95;
+}
+@utility label {
+  @apply mb-1.5 block text-sm font-semibold text-navy-800;
+}
+@utility input {
+  @apply w-full rounded-2xl border border-navy-100 bg-white px-3.5 py-2.5 text-sm text-navy-900 outline-none transition placeholder:text-navy-300 hover:border-navy-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-100;
+}
+@utility badge {
+  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+}
+@utility skeleton {
+  @apply rounded-xl bg-[linear-gradient(90deg,#e6eef5_0px,#f5f9fc_120px,#e6eef5_240px)] bg-[length:800px_100%] animate-shimmer;
+}
+
+@layer components {
+  table.table {
+    @apply w-full text-left text-sm;
+  }
+  table.table th {
+    @apply border-b border-navy-100 bg-navy-50/60 px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-navy-400;
+  }
+  table.table td {
+    @apply border-b border-navy-50 px-4 py-3 align-middle;
+  }
+  table.table tbody tr {
+    @apply transition-colors hover:bg-sun-50/60;
+  }
+  .prose-article p {
+    @apply mb-4 leading-relaxed;
+  }
+  .prose-article h2 {
+    @apply mt-8 mb-3 text-xl font-bold text-navy-900;
+  }
+  .prose-article h3 {
+    @apply mt-5 mb-2 text-lg font-semibold text-navy-900;
+  }
+  .prose-article ul {
+    @apply mb-4 list-disc space-y-1 pl-6 marker:text-brand-500;
+  }
+  .prose-article ol {
+    @apply mb-4 list-decimal space-y-1 pl-6 marker:font-bold marker:text-brand-600;
+  }
+  .prose-article strong {
+    @apply text-navy-900;
+  }
+  .stagger > * {
+    animation: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0.02s; }
+  .stagger > *:nth-child(2) { animation-delay: 0.07s; }
+  .stagger > *:nth-child(3) { animation-delay: 0.12s; }
+  .stagger > *:nth-child(4) { animation-delay: 0.17s; }
+  .stagger > *:nth-child(5) { animation-delay: 0.22s; }
+  .stagger > *:nth-child(6) { animation-delay: 0.27s; }
+  .stagger > *:nth-child(7) { animation-delay: 0.32s; }
+  .stagger > *:nth-child(8) { animation-delay: 0.37s; }
+  .stagger > *:nth-child(n + 9) { animation-delay: 0.42s; }
+  .confetti-piece {
+    position: absolute;
+    top: 0;
+    width: 8px;
+    height: 14px;
+    border-radius: 2px;
+    animation: confetti-fall 2.4s ease-in forwards;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Scrollbar halus */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #84c3e5 transparent;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ===== Animasi hasil games ===== */
+@keyframes rain-drop {
+  0% { transform: translateY(-10px); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translateY(70px); opacity: 0; }
+}
+@keyframes crown-drop {
+  0% { transform: translateY(-120px) rotate(-20deg) scale(0.6); opacity: 0; }
+  60% { transform: translateY(8px) rotate(6deg) scale(1.1); opacity: 1; }
+  80% { transform: translateY(-4px) rotate(-3deg) scale(0.97); }
+  100% { transform: translateY(0) rotate(0) scale(1); opacity: 1; }
+}
+@keyframes rays-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes star-in {
+  0% { transform: scale(0) rotate(-90deg); opacity: 0; }
+  70% { transform: scale(1.3) rotate(10deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+@keyframes wobble {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+@keyframes sparkle {
+  0%, 100% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1); opacity: 1; }
+}
+
+/* Mode lihat saja (Superadmin): semua tautan unduhan (/api/...) dimatikan; server tetap menolak dengan 403 */
+html[data-readonly] a[href^="/api/"] {
+  pointer-events: none;
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Judul tampilan (landing): Carter One seperti situs Smart Champion */
+@utility font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* ===== Maskot kucing games (src/components/game-cat.tsx) ===== */
+.cat g,
+.cat path,
+.cat ellipse,
+.cat circle,
+.cat rect {
+  transform-box: fill-box;
+}
+.cat-breathe { transform-origin: 50% 100%; animation: cat-breathe 3.2s ease-in-out infinite; }
+.cat-bob { transform-origin: 50% 100%; animation: cat-bob 0.9s ease-in-out infinite; }
+.cat-jump { transform-origin: 50% 100%; animation: cat-jump 0.8s cubic-bezier(0.3, 0, 0.4, 1) infinite; }
+.cat-sob { transform-origin: 50% 100%; animation: cat-sob 0.45s ease-in-out infinite; }
+.cat-droop { transform-origin: 50% 100%; animation: cat-droop 3.6s ease-in-out infinite; }
+.cat-shadow { transform-origin: 50% 50%; animation: cat-shadow 0.8s cubic-bezier(0.3, 0, 0.4, 1) infinite; }
+.cat-tail { transform-origin: 0% 100%; animation: cat-tail 1.6s ease-in-out infinite; }
+.cat-tail-slow { transform-origin: 0% 50%; animation: cat-tail-slow 4s ease-in-out infinite; }
+.cat-blink { transform-origin: 50% 50%; animation: cat-blink 4.5s infinite; }
+.cat-ear-l { transform-origin: 70% 100%; animation: cat-ear 5s ease-in-out infinite; }
+.cat-ear-r { transform-origin: 30% 100%; animation: cat-ear 5s ease-in-out 2.4s infinite; }
+.cat-ear-l-droop { transform-origin: 90% 100%; transform: rotate(-24deg) translate(-2px, 6px); }
+.cat-ear-r-droop { transform-origin: 10% 100%; transform: rotate(24deg) translate(2px, 6px); }
+.cat-head-tilt { transform-origin: 50% 90%; animation: cat-head-tilt 1.8s ease-in-out infinite; }
+.cat-head-sob { transform-origin: 50% 90%; animation: cat-head-sob 0.45s ease-in-out infinite; }
+.cat-laugh { transform-origin: 50% 0%; animation: cat-laugh 0.3s ease-in-out infinite alternate; }
+.cat-wail { transform-origin: 50% 0%; animation: cat-laugh 0.45s ease-in-out infinite alternate; }
+.cat-quiver { animation: cat-quiver 0.25s linear infinite; }
+.cat-pulse { transform-origin: 50% 50%; animation: cat-pulse 0.8s ease-in-out infinite; }
+.cat-bell { transform-origin: 50% 0%; animation: cat-bell 0.6s ease-in-out infinite; }
+.cat-wave-l { transform-origin: 100% 100%; animation: cat-wave 0.4s ease-in-out infinite alternate; }
+.cat-wave-r { transform-origin: 0% 100%; animation: cat-wave 0.4s ease-in-out 0.2s infinite alternate-reverse; }
+.cat-tear { transform-origin: 50% 0%; animation: cat-tear 1.8s ease-in infinite; }
+.cat-stream { animation: cat-stream 0.5s linear infinite; }
+.cat-spray-l { animation: cat-spray-l 1s ease-out infinite; }
+.cat-spray-r { animation: cat-spray-r 1s ease-out infinite; }
+.cat-twinkle { transform-origin: 50% 50%; animation: cat-twinkle 1.6s ease-in-out infinite; }
+.cat-confetti { transform-origin: 50% 50%; animation: cat-confetti 1.6s ease-in infinite; }
+.cat-cloud { animation: cat-cloud 2.4s ease-in-out infinite; }
+
+@keyframes cat-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.015, 0.985); } }
+@keyframes cat-bob { 0%, 100% { transform: rotate(-3deg) translateY(0); } 50% { transform: rotate(3deg) translateY(-3px); } }
+@keyframes cat-jump {
+  0%, 100% { transform: translateY(0) scale(1.07, 0.93); }
+  18% { transform: translateY(0) scale(0.95, 1.06); }
+  50% { transform: translateY(-24px) scale(1, 1) rotate(-3deg); }
+  80% { transform: translateY(0) scale(1.05, 0.95); }
+}
+@keyframes cat-shadow { 0%, 18%, 80%, 100% { transform: scale(1); opacity: 0.12; } 50% { transform: scale(0.6); opacity: 0.06; } }
+@keyframes cat-sob { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(1.5px) scale(1.02, 0.97); } }
+@keyframes cat-droop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(2px) scale(1.01, 0.98); } }
+@keyframes cat-tail { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(9deg); } }
+@keyframes cat-tail-slow { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(5deg); } }
+@keyframes cat-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.12); } }
+@keyframes cat-ear { 0%, 88%, 100% { transform: rotate(0); } 92% { transform: rotate(-9deg); } 96% { transform: rotate(4deg); } }
+@keyframes cat-head-tilt { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+@keyframes cat-head-sob { 0%, 100% { transform: rotate(-1.5deg) translateY(0); } 50% { transform: rotate(1.5deg) translateY(1.5px); } }
+@keyframes cat-laugh { from { transform: scaleY(0.82); } to { transform: scaleY(1.08); } }
+@keyframes cat-quiver { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-0.6px); } 75% { transform: translateX(0.6px); } }
+@keyframes cat-pulse { 0%, 100% { transform: scale(1) rotate(0); } 50% { transform: scale(1.18) rotate(12deg); } }
+@keyframes cat-bell { 0%, 100% { transform: rotate(-14deg); } 50% { transform: rotate(14deg); } }
+@keyframes cat-wave { from { transform: rotate(-14deg); } to { transform: rotate(14deg); } }
+@keyframes cat-tear {
+  0% { transform: translateY(0) scale(0.4); opacity: 0; }
+  15% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(30px) scale(0.85); opacity: 0; }
+}
+@keyframes cat-stream { to { stroke-dashoffset: -24; } }
+@keyframes cat-spray-l { 0% { transform: translate(0, 0) scale(1); opacity: 1; } 100% { transform: translate(-20px, 14px) scale(0.5); opacity: 0; } }
+@keyframes cat-spray-r { 0% { transform: translate(0, 0) scale(1); opacity: 1; } 100% { transform: translate(20px, 14px) scale(0.5); opacity: 0; } }
+@keyframes cat-twinkle { 0%, 100% { transform: scale(0.35) rotate(0deg); opacity: 0.25; } 50% { transform: scale(1) rotate(45deg); opacity: 1; } }
+@keyframes cat-confetti {
+  0% { transform: translateY(-8px) rotate(0deg); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translateY(70px) rotate(300deg); opacity: 0; }
+}
+@keyframes cat-cloud { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-4px); } }

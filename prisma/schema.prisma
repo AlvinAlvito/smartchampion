@@ -1,0 +1,1032 @@
+generator client {
+  provider      = "prisma-client-js"
+  // native = laptop (Windows); debian-openssl-3.0.x = VPS Ubuntu 22.04
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  /// Root: akses penuh (kelola semua data, akun, "masuk sebagai")
+  ROOT
+  /// Superadmin (Team Leader): melihat semua menu, mode lihat saja (tanpa ubah/hapus/unduh)
+  SUPERADMIN
+  ADMIN
+  /// Admin SmartChampion: kelola produk & materi, pendaftar COC, tutor, games, chatbot (tanpa akses sales/keuangan)
+  SMARTCHAMPION
+  PESERTA
+}
+
+enum Jenjang {
+  SD
+  SMP
+  SMA
+  UMUM
+}
+
+/// Jenis produk: kelas grup COC (per bulan, kuota minimal) atau VIP Privat (per pertemuan, beli paket)
+enum ProductType {
+  COC
+  PRIVATE
+}
+
+enum ProductStatus {
+  DRAFT
+  OPEN
+  RUNNING
+  CLOSED
+}
+
+enum RegistrationStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum MaterialType {
+  PDF
+  VIDEO
+  ARTICLE
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(120)
+  email        String   @unique @db.VarChar(160)
+  password     String   @db.VarChar(255)
+  role         Role     @default(PESERTA)
+  phone        String?  @db.VarChar(30)
+  school       String?  @db.VarChar(160)
+  jenjang      Jenjang?
+  /// mis. "Kelas 9 SMP/sederajat"
+  kelas        String?  @db.VarChar(60)
+  /// Wilayah (kode & nama mengikuti Kepmendagri, sumber wilayah.id)
+  provinsiKode String?  @db.VarChar(10)
+  provinsi     String?  @db.VarChar(80)
+  kabKotaKode  String?  @db.VarChar(10)
+  kabKota      String?  @db.VarChar(100)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  registrations        Registration[]     @relation("RegistrationUser")
+  handledRegistrations Registration[]     @relation("RegistrationAdmin")
+  leads                Lead[]
+  blasts               Blast[]
+  scores               GameScore[]
+  materials            Material[]
+  /// Nomor WhatsApp yang ditautkan admin untuk menu Chat WA (satu nomor per admin)
+  waAccount            WaAccount?
+  waMessagesSent       WaMessage[]
+  worksheetAttempts    WorksheetAttempt[]
+  classResults         ClassResult[]
+  meetingScores        MeetingScore[]
+  feedbacks            Feedback[]
+  attendances          Attendance[]       @relation("AttendanceUser")
+  attendanceMarked     Attendance[]       @relation("AttendanceMarker")
+  jobWeeks             JobWeek[]
+  jobDailies           JobDaily[]
+  jobRoutines          JobRoutine[]
+  jobNotes             JobNote[]          @relation("JobNoteOwner")
+  jobNotesAuthored     JobNote[]          @relation("JobNoteAuthor")
+  blastSenders         BlastSender[]
+  blastContacts        BlastContact[]
+  blastCampaigns       BlastCampaign[]
+  activityLogs         ActivityLog[]
+
+  @@map("users")
+}
+
+/// Produk pelatihan COC (satu baris = satu kelas/bidang)
+model Product {
+  id                 Int           @id @default(autoincrement())
+  slug               String        @unique @db.VarChar(160)
+  name               String        @db.VarChar(160)
+  bidang             String        @db.VarChar(80)
+  jenjang            Jenjang
+  level              String        @default("Advance") @db.VarChar(40)
+  gradeLabel         String?       @db.VarChar(80)
+  shortDesc          String        @db.VarChar(255)
+  description        String        @db.Text
+  /// COC: harga per priceUnit (mis. bulan). PRIVATE: harga per 1 pertemuan.
+  type               ProductType   @default(COC)
+  price              Int
+  priceUnit          String        @default("bulan") @db.VarChar(30)
+  minQuota           Int           @default(15)
+  maxQuota           Int?
+  /// Tampilan progres kuota di katalog: AUTO (tampil bila ≥ 10 peserta lunas) | ALWAYS | HIDDEN
+  quotaDisplay       String        @default("AUTO") @db.VarChar(10)
+  /// Sertifikat: gambar latar (privat, storage/certificates) & pengaturan tata letak (lihat lib/certificate.ts)
+  certificateBgUrl   String?       @db.VarChar(255)
+  certificateConfig  Json?
+  /// Rapor akhir tampil ke peserta
+  reportPublished    Boolean       @default(false)
+  scheduleInfo       String?       @db.VarChar(255)
+  startDate          DateTime?
+  status             ProductStatus @default(OPEN)
+  imageUrl           String?       @db.VarChar(255)
+  /// Link undangan grup WhatsApp kelas — hanya ditampilkan ke peserta yang sudah lunas
+  waGroupUrl         String?       @db.VarChar(500)
+  /// Desain PDF Soal & Pembahasan worksheet: gambar latar (privat) & margin/kertas
+  worksheetPdfBg     String?       @db.VarChar(255)
+  worksheetPdfConfig Json?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  registrations Registration[]
+  sessions      ClassSession[]
+  materials     Material[]
+  /// Tutor yang mengajar kelas ini (banyak-ke-banyak)
+  tutors        Tutor[]          @relation("TutorClasses")
+  /// Paket pertemuan (khusus VIP Privat), mis. 1x, 4x, 8x
+  packages      ProductPackage[]
+  results       ClassResult[]
+  feedbacks     Feedback[]
+
+  @@map("products")
+}
+
+model Registration {
+  id              Int                @id @default(autoincrement())
+  code            String             @unique @db.VarChar(40)
+  userId          Int
+  /// Boleh kosong bila admin melepas peserta dari kelas; histori transaksi tetap disimpan.
+  productId       Int?
+  fullName        String             @db.VarChar(120)
+  school          String             @db.VarChar(160)
+  phone           String             @db.VarChar(30)
+  email           String             @db.VarChar(160)
+  parentPhone     String?            @db.VarChar(30)
+  source          String             @db.VarChar(60)
+  adminId         Int?
+  amount          Int
+  /// VIP Privat: paket yang dibeli (snapshot jumlah pertemuan & progres pemakaian)
+  packageId       Int?
+  sessionsBought  Int?
+  sessionsDone    Int                @default(0)
+  status          RegistrationStatus @default(PENDING)
+  midtransOrderId String?            @unique @db.VarChar(64)
+  snapToken       String?            @db.VarChar(128)
+  paymentType     String?            @db.VarChar(40)
+  paidAt          DateTime?
+  notes           String?            @db.Text
+  /// lead Master Lead asal (akun & kelas diaktifkan dari Master Lead, mis. data peserta Google Form)
+  sourceLeadId    Int?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  user    User            @relation("RegistrationUser", fields: [userId], references: [id], onDelete: Cascade)
+  product Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  admin   User?           @relation("RegistrationAdmin", fields: [adminId], references: [id], onDelete: SetNull)
+  package ProductPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([sourceLeadId])
+  @@map("registrations")
+}
+
+/// Paket pertemuan VIP Privat: jumlah pertemuan + harga total paket (boleh diskon)
+model ProductPackage {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  sessions  Int
+  price     Int
+  /// label promosi opsional, mis. "Terlaris", "Paling hemat"
+  label     String?  @db.VarChar(40)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product       Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  registrations Registration[]
+
+  @@index([productId, isActive])
+  @@map("product_packages")
+}
+
+model ClassSession {
+  id                 Int       @id @default(autoincrement())
+  productId          Int
+  title              String    @db.VarChar(160)
+  startAt            DateTime
+  endAt              DateTime
+  meetingUrl         String?   @db.VarChar(255)
+  /// link rekaman (Zoom cloud recording / YouTube / Drive) untuk peserta yang tertinggal
+  recordingUrl       String?   @db.VarChar(500)
+  notes              String?   @db.Text
+  /// worksheet pilihan ganda pertemuan ini: tampil ke peserta bila diterbitkan
+  worksheetPublished Boolean   @default(false)
+  /// batas pengumpulan (kosong = tanpa batas)
+  worksheetDueAt     DateTime?
+  createdAt          DateTime  @default(now())
+
+  product            Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  worksheetQuestions WorksheetQuestion[]
+  worksheetAttempts  WorksheetAttempt[]
+  attendances        Attendance[]
+  /// nilai manual tutor/admin (menggantikan nilai otomatis worksheet di rekap & rapor)
+  manualScores       MeetingScore[]
+
+  @@map("class_sessions")
+}
+
+/// Soal worksheet (pilihan ganda) per pertemuan. Teks & opsi mendukung LaTeX ($...$).
+model WorksheetQuestion {
+  id          Int     @id @default(autoincrement())
+  sessionId   Int
+  text        String  @db.Text
+  /// gambar soal (privat, /api/worksheet-img/...)
+  imageUrl    String? @db.VarChar(255)
+  options     Json
+  answerIndex Int
+  points      Int     @default(10)
+  /// pembahasan (tampil setelah peserta mengumpulkan)
+  explanation String? @db.Text
+  order       Int     @default(0)
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, order])
+  @@map("worksheet_questions")
+}
+
+/// Hasil pengerjaan worksheet (satu kali per peserta; admin bisa reset agar mengerjakan ulang)
+model WorksheetAttempt {
+  id             Int      @id @default(autoincrement())
+  sessionId      Int
+  userId         Int
+  /// [{ questionId, choice }] (choice -1 = kosong)
+  answers        Json
+  correctCount   Int
+  totalQuestions Int
+  earnedPoints   Int
+  maxPoints      Int
+  /// nilai 0-100 & huruf mutu (A-E)
+  score          Int
+  grade          String   @db.VarChar(2)
+  submittedAt    DateTime @default(now())
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@map("worksheet_attempts")
+}
+
+/// Absensi per pertemuan. Peserta absen sendiri hanya saat pertemuan berlangsung; admin bebas kapan saja.
+model Attendance {
+  id         Int      @id @default(autoincrement())
+  sessionId  Int
+  userId     Int
+  /// HADIR | IZIN | SAKIT | ALPA
+  status     String   @db.VarChar(10)
+  /// MANDIRI (peserta) | ADMIN
+  method     String   @db.VarChar(10)
+  note       String?  @db.VarChar(255)
+  markedById Int?
+  updatedAt  DateTime @updatedAt
+
+  session  ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user     User         @relation("AttendanceUser", fields: [userId], references: [id], onDelete: Cascade)
+  markedBy User?        @relation("AttendanceMarker", fields: [markedById], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, userId])
+  @@map("attendances")
+}
+
+model Material {
+  id          Int          @id @default(autoincrement())
+  productId   Int
+  title       String       @db.VarChar(200)
+  type        MaterialType
+  url         String?      @db.VarChar(500)
+  content     String?      @db.LongText
+  summary     String?      @db.VarChar(255)
+  isPublished Boolean      @default(true)
+  authorId    Int?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  author  User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@map("materials")
+}
+
+/// Data Master Lead (sama dengan kolom di Data Master Lead.xlsx)
+model Lead {
+  id           Int       @id @default(autoincrement())
+  tanggalMasuk DateTime
+  nama         String    @db.VarChar(160)
+  noWa         String?   @db.VarChar(30)
+  email        String?   @db.VarChar(160)
+  sumberLead   String    @db.VarChar(60)
+  campaign     String?   @db.VarChar(160)
+  kategori     String    @default("Calon Customer") @db.VarChar(40)
+  produk       String?   @db.VarChar(60)
+  paket        String?   @db.VarChar(120)
+  ownerId      Int?
+  statusFunnel String    @default("Baru") @db.VarChar(30)
+  trialMimpimu String?   @db.VarChar(30)
+  invoiceId    String?   @db.VarChar(80)
+  statusBayar  String?   @db.VarChar(30)
+  nominal      Int?
+  /// Tanggal lead menjadi Paid (dasar statistik penjualan per periode)
+  tanggalBayar DateTime?
+  lastContact  DateTime?
+  nextFollowUp DateTime?
+  objection    String?   @db.Text
+  nextAction   String?   @db.Text
+  catatan      String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  owner User? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([statusFunnel])
+  @@index([sumberLead])
+  @@index([tanggalBayar])
+  @@map("leads")
+}
+
+/// Data Blast: kontak yang di-blast admin lewat Email / WhatsApp
+model Blast {
+  id        Int      @id @default(autoincrement())
+  tanggal   DateTime
+  nama      String   @db.VarChar(160)
+  email     String?  @db.VarChar(160)
+  noHp      String?  @db.VarChar(30)
+  provinsi  String?  @db.VarChar(80)
+  kota      String?  @db.VarChar(100)
+  jenjang   String?  @db.VarChar(30)
+  sekolah   String?  @db.VarChar(160)
+  ownerId   Int?
+  /// "Email" | "WhatsApp"
+  asalBlast String   @db.VarChar(20)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner User? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([tanggal])
+  @@index([asalBlast])
+  @@index([noHp])
+  @@index([email])
+  @@map("blasts")
+}
+
+/// Tutor pengajar COC (ditampilkan di halaman publik /tutor)
+model Tutor {
+  id                Int       @id @default(autoincrement())
+  nama              String    @db.VarChar(120)
+  /// URL foto profil (/api/tutor-foto/<file>), null = pakai inisial
+  foto              String?   @db.VarChar(255)
+  /// mis. "Matematika & Fisika"
+  bidang            String?   @db.VarChar(120)
+  /// Daftar poin, satu per baris
+  pengalaman        String?   @db.Text
+  prestasi          String?   @db.Text
+  riwayatPendidikan String?   @db.Text
+  isPublished       Boolean   @default(true)
+  /// Urutan tampil (kecil = lebih dulu)
+  urutan            Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  /// Kelas COC yang dipegang tutor ini
+  classes           Product[] @relation("TutorClasses")
+
+  @@index([isPublished, urutan])
+  @@map("tutors")
+}
+
+/// Basis pengetahuan chatbot AI (dikelola admin). AI hanya menjawab dari data ini + data katalog otomatis.
+model ChatKnowledge {
+  id        Int      @id @default(autoincrement())
+  judul     String   @db.VarChar(160)
+  kategori  String   @default("Umum") @db.VarChar(60)
+  isi       String   @db.Text
+  isActive  Boolean  @default(true)
+  urutan    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, urutan])
+  @@map("chat_knowledge")
+}
+
+/// Percakapan chatbot (untuk evaluasi admin)
+model ChatConversation {
+  id         String        @id @db.VarChar(40)
+  userId     Int?
+  userName   String?       @db.VarChar(120)
+  page       String?       @db.VarChar(160)
+  unanswered Int           @default(0)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  messages   ChatMessage[]
+
+  @@index([updatedAt])
+  @@map("chat_conversations")
+}
+
+model ChatMessage {
+  id             Int              @id @default(autoincrement())
+  conversationId String           @db.VarChar(40)
+  role           String           @db.VarChar(12)
+  content        String           @db.Text
+  /// false = AI tidak menemukan jawabannya di data (perlu ditambahkan ke basis pengetahuan)
+  answered       Boolean?
+  createdAt      DateTime         @default(now())
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([answered])
+  @@map("chat_messages")
+}
+
+model Game {
+  id                 Int       @id @default(autoincrement())
+  slug               String    @unique @db.VarChar(120)
+  title              String    @db.VarChar(160)
+  description        String    @db.Text
+  subject            String    @db.VarChar(60)
+  jenjang            Jenjang   @default(UMUM)
+  type               String    @default("QUIZ") @db.VarChar(30)
+  secondsPerQuestion Int       @default(20)
+  emoji              String    @default("🎯") @db.VarChar(16)
+  isPublished        Boolean   @default(false)
+  launchedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  questions GameQuestion[]
+  scores    GameScore[]
+
+  @@map("games")
+}
+
+model GameQuestion {
+  id          Int     @id @default(autoincrement())
+  gameId      Int
+  text        String  @db.Text
+  options     Json
+  answerIndex Int
+  /// pembahasan singkat (tampil setelah menjawab); LaTeX $..$ didukung
+  explanation String? @db.Text
+  points      Int     @default(100)
+  order       Int     @default(0)
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@map("game_questions")
+}
+
+model GameScore {
+  id             Int      @id @default(autoincrement())
+  gameId         Int
+  userId         Int
+  score          Int
+  correctCount   Int
+  totalQuestions Int
+  durationMs     Int
+  createdAt      DateTime @default(now())
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([gameId, score])
+  @@map("game_scores")
+}
+
+/// ---------- Chat WA (CRM sederhana, WhatsApp tidak resmi via wa-gateway) ----------
+model WaAccount {
+  id          Int       @id @default(autoincrement())
+  userId      Int       @unique
+  /// DISCONNECTED | CONNECTING | QR | PAIRING | CONNECTED | RECONNECTING | LOGGED_OUT | BANNED | REPLACED
+  status      String    @default("DISCONNECTED") @db.VarChar(20)
+  phone       String?   @db.VarChar(30)
+  waName      String?   @db.VarChar(120)
+  lastError   String?   @db.VarChar(255)
+  restricted  Boolean   @default(false)
+  /// Auto-balas AI (chatbot) untuk chat masuk di nomor ini
+  autoReply   Boolean   @default(false)
+  connectedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chats WaChat[]
+
+  @@map("wa_accounts")
+}
+
+model WaChat {
+  id              Int       @id @default(autoincrement())
+  accountId       Int
+  /// jid kanonik (nomor@s.whatsapp.net bila nomor diketahui, selain itu LID)
+  jid             String    @db.VarChar(80)
+  lid             String?   @db.VarChar(80)
+  phone           String?   @db.VarChar(30)
+  name            String?   @db.VarChar(120)
+  lastMessageAt   DateTime?
+  lastMessageText String?   @db.VarChar(255)
+  lastFromMe      Boolean   @default(false)
+  unread          Int       @default(0)
+  /// pernah menerima pesan dari customer → boleh dibalas (tidak ada kirim ke nomor baru/broadcast)
+  hasIncoming     Boolean   @default(false)
+  /// auto-balas AI dijeda di chat ini (dialihkan ke admin / admin sedang menangani)
+  aiPaused        Boolean   @default(false)
+  aiNote          String?   @db.VarChar(160)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  account  WaAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  messages WaMessage[]
+
+  @@unique([accountId, jid])
+  @@index([accountId, lastMessageAt])
+  @@index([accountId, phone])
+  @@index([accountId, lid])
+  @@map("wa_chats")
+}
+
+model WaMessage {
+  id        Int      @id @default(autoincrement())
+  chatId    Int
+  /// id pesan WhatsApp (kosong selama masih di antrean kirim)
+  waId      String?  @db.VarChar(100)
+  fromMe    Boolean
+  /// text | image | video | gif | document | voice | audio | sticker | location | contact | poll
+  type      String   @default("text") @db.VarChar(20)
+  body      String?  @db.Text
+  /// RECEIVED | PENDING | SENT | DELIVERED | READ | FAILED
+  status    String   @default("RECEIVED") @db.VarChar(12)
+  error     String?  @db.VarChar(255)
+  /// admin yang mengirim dari panel (kosong = dikirim langsung dari HP)
+  sentById  Int?
+  /// dikirim otomatis oleh AI (auto-balas)
+  byAi      Boolean  @default(false)
+  /// gambar tersimpan di wa-gateway (ditampilkan lewat /api/admin/wa/media)
+  hasMedia  Boolean  @default(false)
+  timestamp DateTime
+  createdAt DateTime @default(now())
+
+  chat   WaChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sentBy User?  @relation(fields: [sentById], references: [id], onDelete: SetNull)
+
+  @@unique([chatId, waId])
+  @@index([chatId, id])
+  @@map("wa_messages")
+}
+
+/// Hasil akhir pelatihan per peserta: sertifikat (nomor & tanggal terbit) + catatan tutor untuk rapor
+model ClassResult {
+  id                  Int       @id @default(autoincrement())
+  productId           Int
+  userId              Int
+  /// catatan tutor/admin di rapor
+  note                String?   @db.Text
+  certificateNo       String?   @unique @db.VarChar(80)
+  /// nama di sertifikat (snapshot saat terbit, bisa dikoreksi admin)
+  certificateName     String?   @db.VarChar(120)
+  certificateIssuedAt DateTime?
+  /// nilai Try Out Mimpi.mu setelah pelatihan (0–100); ikut dirata-rata sebagai satu nilai
+  tryoutScore         Float?
+  tryoutNote          String?   @db.VarChar(255)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, userId])
+  @@map("class_results")
+}
+
+/// Nilai pertemuan yang diisi/diubah manual oleh tutor/admin (menggantikan nilai worksheet otomatis)
+model MeetingScore {
+  id        Int      @id @default(autoincrement())
+  sessionId Int
+  userId    Int
+  score     Float
+  note      String?  @db.VarChar(255)
+  /// nama staf yang terakhir mengubah
+  updatedBy String?  @db.VarChar(120)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@index([userId])
+  @@map("meeting_scores")
+}
+
+/// Feedback peserta di akhir pelatihan (terbuka setelah semua pertemuan selesai & rapor diterbitkan).
+/// Kolom *Rating = rata-rata jawaban rating per aspek (cache untuk ringkasan), null bila aspek tidak ditanyakan.
+model Feedback {
+  id             Int      @id @default(autoincrement())
+  productId      Int
+  userId         Int
+  tutorRating    Float?
+  adminRating    Float?
+  materialRating Float?
+  overallRating  Float?
+  /// tidak dipakai lagi (saran kini lewat pertanyaan isian)
+  comment        String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  product Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers FeedbackAnswer[]
+
+  @@unique([productId, userId])
+  @@index([createdAt])
+  @@map("feedbacks")
+}
+
+enum FeedbackCategory {
+  TUTOR
+  ADMIN
+  MATERI
+  KESELURUHAN
+  UMUM
+}
+
+enum FeedbackQuestionType {
+  RATING
+  CHOICE
+  TEXT
+}
+
+/// Bank pertanyaan feedback (dikelola admin, berlaku untuk semua kelas)
+model FeedbackQuestion {
+  id          Int                  @id @default(autoincrement())
+  text        String               @db.VarChar(300)
+  description String?              @db.VarChar(300)
+  category    FeedbackCategory     @default(UMUM)
+  type        FeedbackQuestionType @default(RATING)
+  /// pilihan untuk tipe CHOICE (array string)
+  options     Json?
+  required    Boolean              @default(true)
+  isActive    Boolean              @default(true)
+  order       Int                  @default(0)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  answers FeedbackAnswer[]
+
+  @@index([isActive, order])
+  @@map("feedback_questions")
+}
+
+/// Jawaban per pertanyaan; teks/aspek/tipe pertanyaan disalin agar riwayat tetap utuh bila pertanyaan diubah/dihapus
+model FeedbackAnswer {
+  id           Int                  @id @default(autoincrement())
+  feedbackId   Int
+  questionId   Int?
+  questionText String               @db.VarChar(300)
+  category     FeedbackCategory
+  type         FeedbackQuestionType
+  rating       Int?
+  text         String?              @db.Text
+
+  feedback Feedback          @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  question FeedbackQuestion? @relation(fields: [questionId], references: [id], onDelete: SetNull)
+
+  @@index([feedbackId])
+  @@index([questionId])
+  @@map("feedback_answers")
+}
+
+/**
+ * ======================= Jobdesk Admin Pelatihan =======================
+ */
+
+enum JobCategory {
+  PRIORITAS
+  SISTEM
+  PEOPLE
+  OPERASIONAL
+}
+
+enum JobPriority {
+  RENDAH
+  SEDANG
+  TINGGI
+}
+
+/// Agenda pekanan satu admin (pekan ISO Senin–Minggu). Isi lembar mengikuti Panduan Agenda Pekanan (3 pertanyaan + uji 3LD).
+model JobWeek {
+  id           Int       @id @default(autoincrement())
+  userId       Int
+  year         Int
+  week         Int
+  /// subjudul sampul, mis. "Admin Pelatihan • Sales COC & MIMPI.MU"
+  roleTitle    String?   @db.VarChar(200)
+  /// "Fokus pekan ini" (satu poin per baris)
+  focus        String?   @db.Text
+  /// "Peran utama" di bagian Konteks Peran
+  context      String?   @db.Text
+  /// kesimpulan agenda pekan ini
+  conclusion   String?   @db.Text
+  /// catatan evaluasi pekan dari Root
+  reviewNote   String?   @db.Text
+  reviewNoteBy String?   @db.VarChar(120)
+  reviewNoteAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agendas JobWeekly[]
+
+  @@unique([userId, year, week])
+  @@map("job_weeks")
+}
+
+/// Weekly jobdesk = satu agenda pekanan
+model JobWeekly {
+  id            Int         @id @default(autoincrement())
+  weekId        Int
+  category      JobCategory @default(PRIORITAS)
+  title         String      @db.VarChar(200)
+  /// kalimat tujuan singkat (setelah label "PRIORITAS 1 |")
+  objective     String?     @db.VarChar(300)
+  doneMeasure   String?     @db.Text
+  leadMeasure   String?     @db.Text
+  pic           String?     @db.VarChar(120)
+  startDate     DateTime?   @db.Date
+  dueDate       DateTime?   @db.Date
+  ld1           String?     @db.Text
+  ld2           String?     @db.Text
+  ld3           String?     @db.Text
+  ld1Ok         Boolean     @default(false)
+  ld2Ok         Boolean     @default(false)
+  ld3Ok         Boolean     @default(false)
+  /// langkah kerja (satu per baris)
+  steps         String?     @db.Text
+  beneficiaries String?     @db.VarChar(300)
+  /// khusus OPERASIONAL (BAU): status / alasan / cara menangani
+  opsStatus     String?     @db.VarChar(120)
+  opsReason     String?     @db.Text
+  opsHandling   String?     @db.Text
+  done          Boolean     @default(false)
+  doneAt        DateTime?
+  order         Int         @default(0)
+  rootNote      String?     @db.Text
+  rootNoteBy    String?     @db.VarChar(120)
+  rootNoteAt    DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  week    JobWeek    @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  dailies JobDaily[]
+
+  @@index([weekId, category, order])
+  @@map("job_weeklies")
+}
+
+/// Daily jobdesk (checklist per tanggal); bisa berasal dari rutin harian & ditautkan ke agenda pekanan
+model JobDaily {
+  id         Int         @id @default(autoincrement())
+  userId     Int
+  date       DateTime    @db.Date
+  title      String      @db.VarChar(200)
+  notes      String?     @db.Text
+  priority   JobPriority @default(SEDANG)
+  /// jam tenggat "HH:MM" (WIB)
+  dueTime    String?     @db.VarChar(5)
+  weeklyId   Int?
+  routineId  Int?
+  done       Boolean     @default(false)
+  doneAt     DateTime?
+  order      Int         @default(0)
+  rootNote   String?     @db.Text
+  rootNoteBy String?     @db.VarChar(120)
+  rootNoteAt DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekly  JobWeekly?  @relation(fields: [weeklyId], references: [id], onDelete: SetNull)
+  routine JobRoutine? @relation(fields: [routineId], references: [id], onDelete: SetNull)
+
+  @@unique([routineId, date])
+  @@index([userId, date])
+  @@map("job_dailies")
+}
+
+/// Rutin harian (BAU): otomatis tampil di checklist pada hari yang dipilih
+model JobRoutine {
+  id        Int         @id @default(autoincrement())
+  userId    Int
+  title     String      @db.VarChar(200)
+  notes     String?     @db.Text
+  priority  JobPriority @default(SEDANG)
+  dueTime   String?     @db.VarChar(5)
+  /// hari aktif ISO: 1=Senin … 7=Minggu, dipisah koma
+  weekdays  String      @default("1,2,3,4,5") @db.VarChar(20)
+  isActive  Boolean     @default(true)
+  order     Int         @default(0)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailies JobDaily[]
+
+  @@index([userId, isActive])
+  @@map("job_routines")
+}
+
+/// Catatan bersama admin & root (umum, atau untuk tanggal tertentu)
+model JobNote {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  authorId  Int?
+  date      DateTime? @db.Date
+  content   String    @db.Text
+  pinned    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user   User  @relation("JobNoteOwner", fields: [userId], references: [id], onDelete: Cascade)
+  author User? @relation("JobNoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([userId, pinned, createdAt])
+  @@map("job_notes")
+}
+
+/// Nomor WhatsApp khusus blast (terpisah dari nomor Chat WA) — sesi gateway "blast-<id>"
+model BlastSender {
+  id               Int       @id @default(autoincrement())
+  userId           Int
+  /// DISCONNECTED | CONNECTING | QR | PAIRING | CONNECTED | RECONNECTING | LOGGED_OUT | BANNED | REPLACED
+  status           String    @default("DISCONNECTED") @db.VarChar(20)
+  phone            String?   @db.VarChar(30)
+  waName           String?   @db.VarChar(120)
+  lastError        String?   @db.VarChar(255)
+  restricted       Boolean   @default(false)
+  /// umur nomor WA menurut admin: BARU (< 1 bln) | SEDANG (1–6 bln) | LAMA (> 6 bln) → menentukan kuota warm-up
+  numberAge        String    @default("BARU") @db.VarChar(10)
+  connectedAt      DateTime?
+  /// pertama kali tersambung ke sistem (dasar tahap warm-up)
+  firstConnectedAt DateTime?
+  /// jadwal kirim berikutnya (jeda acak antar pesan); dipakai juga sebagai kunci agar tidak kirim ganda
+  nextSendAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaigns BlastCampaign[]
+
+  @@index([userId])
+  @@map("blast_senders")
+}
+
+/// Buku kontak Blast WhatsApp (per admin/owner)
+model BlastContact {
+  id           Int       @id @default(autoincrement())
+  ownerId      Int
+  nama         String    @db.VarChar(160)
+  /// format 62xxxxxxxxxx
+  noHp         String    @db.VarChar(30)
+  email        String?   @db.VarChar(160)
+  jenjang      String?   @db.VarChar(30)
+  kelas        String?   @db.VarChar(30)
+  sekolah      String?   @db.VarChar(160)
+  kota         String?   @db.VarChar(100)
+  provinsi     String?   @db.VarChar(80)
+  /// label/grup dipisah koma dan diapit koma, mis. ",Olimpiade,SD Bandung,"
+  labels       String?   @db.VarChar(255)
+  catatan      String?   @db.Text
+  /// Manual | Impor Excel | Data Blast
+  source       String?   @db.VarChar(40)
+  /// berhenti berlangganan (balas STOP / ditandai admin) → tidak akan dikirimi blast
+  optOut       Boolean   @default(false)
+  optOutAt     DateTime?
+  optOutReason String?   @db.VarChar(160)
+  /// UNKNOWN | VALID | INVALID (nomor tidak terdaftar di WhatsApp)
+  waStatus     String    @default("UNKNOWN") @db.VarChar(10)
+  blastCount   Int       @default(0)
+  lastBlastAt  DateTime?
+  lastReplyAt  DateTime?
+  /// baris Data Blast (/admin/blast) yang mewakili kontak ini
+  blastId      Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  owner      User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  recipients BlastRecipient[]
+
+  @@unique([ownerId, noHp])
+  @@index([ownerId, createdAt])
+  @@index([noHp])
+  @@map("blast_contacts")
+}
+
+/// Kampanye blast WhatsApp
+model BlastCampaign {
+  id           Int       @id @default(autoincrement())
+  ownerId      Int
+  senderId     Int?
+  name         String    @db.VarChar(160)
+  /// template pesan: variabel {nama} {sekolah} … dan spintax {Halo|Hai}
+  message      String    @db.Text
+  /// gambar lampiran (storage/blast/<file>), opsional
+  imageFile    String?   @db.VarChar(80)
+  /// DRAFT | SCHEDULED | RUNNING | PAUSED | COMPLETED | CANCELLED
+  status       String    @default("DRAFT") @db.VarChar(12)
+  pauseReason  String?   @db.VarChar(255)
+  /// ringkasan audiens saat kampanye dibuat
+  audienceNote String?   @db.VarChar(255)
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  /// jeda acak antar pesan (detik)
+  delayMin     Int       @default(30)
+  delayMax     Int       @default(75)
+  /// istirahat setelah setiap N pesan
+  batchSize    Int       @default(20)
+  batchRestMin Int       @default(10)
+  sentInBatch  Int       @default(0)
+  /// jam kirim (WIB), [hourStart, hourEnd)
+  hourStart    Int       @default(8)
+  hourEnd      Int       @default(20)
+  /// batas pesan per hari untuk kampanye ini (tetap dibatasi kuota warm-up nomor)
+  dailyLimit   Int       @default(150)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  owner      User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  sender     BlastSender?     @relation(fields: [senderId], references: [id], onDelete: SetNull)
+  recipients BlastRecipient[]
+
+  @@index([status])
+  @@index([ownerId, createdAt])
+  @@map("blast_campaigns")
+}
+
+/// Penerima satu kampanye (snapshot kontak + status kirim)
+model BlastRecipient {
+  id         Int       @id @default(autoincrement())
+  campaignId Int
+  contactId  Int?
+  nama       String    @db.VarChar(160)
+  noHp       String    @db.VarChar(30)
+  /// PENDING | QUEUED | SENT | DELIVERED | READ | FAILED | SKIPPED
+  status     String    @default("PENDING") @db.VarChar(10)
+  /// teks final yang dikirim (setelah variabel & spintax)
+  text       String?   @db.Text
+  waId       String?   @db.VarChar(100)
+  error      String?   @db.VarChar(255)
+  queuedAt   DateTime?
+  sentAt     DateTime?
+  repliedAt  DateTime?
+  replyText  String?   @db.VarChar(255)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  campaign BlastCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact  BlastContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@unique([campaignId, noHp])
+  @@index([campaignId, status, id])
+  @@index([noHp, sentAt])
+  @@index([waId])
+  @@index([queuedAt])
+  @@map("blast_recipients")
+}
+
+/// Log aktivitas panel admin (dasar KPI & Performa Admin SmartChampion: tutor, kelas & materi, pertemuan/worksheet, games)
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  /// TUTOR | PRODUCT | SESSION | MATERIAL | PACKAGE | WORKSHEET | ATTENDANCE | SCORE | GRADUATION | GAME | GAME_QUESTION
+  entity    String   @db.VarChar(20)
+  /// CREATE | UPDATE | DELETE | PUBLISH | UNPUBLISH | IMPORT | GENERATE | RESET | ISSUE | REVOKE
+  action    String   @db.VarChar(12)
+  entityId  Int?
+  /// nama objek saat itu (kelas, tutor, game, pertemuan, …)
+  label     String?  @db.VarChar(200)
+  /// kelas terkait (untuk hitungan "kelas yang dikelola")
+  productId Int?
+  /// game terkait (untuk hitungan "games yang dikelola")
+  gameId    Int?
+  /// jumlah item dalam satu aksi (mis. 10 soal sekaligus)
+  count     Int      @default(1)
+  detail    String?  @db.VarChar(255)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("activity_logs")
+}

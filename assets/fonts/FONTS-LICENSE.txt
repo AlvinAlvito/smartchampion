@@ -1,0 +1,2 @@
+GreatVibes-Regular.ttf dan DMSerifDisplay-Regular.ttf: Google Fonts, SIL Open Font License 1.1 (bebas dipakai komersial).
+https://github.com/googlefonts/great-vibes · https://github.com/googlefonts/dm-fonts

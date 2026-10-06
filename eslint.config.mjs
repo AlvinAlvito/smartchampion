@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Proses Node terpisah (bukan kode React/Next)
+    "wa-gateway/**",
   ]),
 ]);
 
