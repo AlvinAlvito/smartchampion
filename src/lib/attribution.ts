@@ -132,6 +132,8 @@ const CREDIT_GRACE_MS = 3 * 86_400_000;
  * HANYA bila lead admin itu sudah masuk sebelum tanggal bayar (lead yang paling akhir sebelum bayar).
  * Lead admin yang baru masuk SETELAH pembayaran tidak mendapat kredit (penjualan itu terjadi tanpa admin tsb).
  */
+export type Attributed = Map<number, { ownerId: number; fromLeadId: number; match: Match }>;
+
 export async function attributeOwners<T extends LeadRow>(sold: T[]) {
   const { ownedLeadIndex, leadIdentity } = await loadIdentityData();
   const out = new Map<number, { ownerId: number; fromLeadId: number; match: Match }>();

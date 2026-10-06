@@ -132,3 +132,11 @@ export const PRODUCT_TYPE_LABEL: Record<string, string> = {
 
 /** Nama produk di Master Lead untuk tiap jenis produk (dipakai statistik penjualan). */
 export const PRODUCT_TYPE_LEAD: Record<string, string> = { COC: "COC", PRIVATE: "VIP Privat" };
+
+/** Nama sumber di form pendaftaran → nama sumber baku di Master Lead */
+export function registrationLeadSource(source: string) {
+  if (source === "Blast WA / Telepon") return "Blast WA (RFM)";
+  if (source === "Bundling Paket Lengkap") return "Bundling POSI";
+  if (["WhatsApp Admin", "Instagram", "Tiktok SC", "Telegram"].includes(source)) return "Organic";
+  return source;
+}

@@ -124,7 +124,9 @@ export async function GET(request: NextRequest) {
         {
           header: "Owner dari pencocokan",
           value: (l) =>
-            l.paidBeforeLead
+            "fromRegistration" in l && l.fromRegistration
+              ? "Dari transaksi web (lead tidak ada di Master Lead) — dikreditkan ke admin penanggung jawab"
+              : l.paidBeforeLead
               ? `Tidak dikreditkan: dibayar sebelum lead masuk ke admin${l.originalOwnerId ? ` (${names.get(l.originalOwnerId) ?? `User #${l.originalOwnerId}`})` : ""}`
               : l.attributedFrom
                 ? "Ya (lead tanpa owner, dicocokkan dengan lead lain orang yang sama)"

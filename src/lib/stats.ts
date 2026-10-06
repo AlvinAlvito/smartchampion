@@ -1,8 +1,8 @@
 import "server-only";
 import { prisma } from "./prisma";
-import { attributeOwners, creditedOwner, detectPaidAcrossData } from "./attribution";
+import { attributeOwners, creditedOwner, detectPaidAcrossData, type Attributed } from "./attribution";
 import type { ProductType } from "@prisma/client";
-import { FUNNEL_STATUSES, PRODUCT_TYPE_LABEL } from "./constants";
+import { FUNNEL_STATUSES, PRODUCT_TYPE_LABEL, registrationLeadSource } from "./constants";
 import { inRange, prismaRange, type DateRange } from "./date-range";
 
 const DAY = 86_400_000;
@@ -148,7 +148,7 @@ export async function getProductSales(range: Pick<DateRange, "start" | "end">, o
       where: {
         statusFunnel: "Paid",
         ...(ownerId ? { OR: [{ ownerId }, { ownerId: null }] } : {}),
-        ...(prismaRange(range) ? { tanggalBayar: prismaRange(range) } : {}),
+        // tanpa filter tanggal: lead lama bisa punya transaksi tambahan (kelas ke-2, ke-3) yang dibayar di periode ini
       },
       select: {
         id: true,
@@ -175,8 +175,12 @@ export async function getProductSales(range: Pick<DateRange, "start" | "end">, o
   // Lead Paid tanpa owner → dikreditkan ke admin pemilik lead lain orang yang sama (WA/email/nama mirip) yang masuk sebelum pembayaran;
   // pembayaran yang terjadi sebelum lead masuk ke admin tidak dihitung sebagai penjualan admin tsb (lihat creditedOwner)
   const attributed = await attributeOwners(allSold);
-  const withOwner = allSold.map((l) => ({ ...l, ...creditedOwner(l, attributed), originalOwnerId: l.ownerId }));
-  const sold = ownerId ? withOwner.filter((l) => l.ownerId === ownerId) : withOwner;
+  const withOwner = allSold.map((l) => ({ ...l, ...creditedOwner(l, attributed), originalOwnerId: l.ownerId, fromRegistration: false }));
+  // Satu lead bisa punya beberapa transaksi lunas (mis. daftar 2 kelas) → setiap transaksi dihitung satu penjualan
+  const expanded = [...withOwner, ...(await extraLinkedRegistrations(allSold, attributed))].filter((l) => inRange(l.tanggalBayar, range));
+  // Transaksi web lunas yang lead-nya tidak ada (mis. lead terhapus karena dikira duplikat) tetap dihitung sebagai penjualan
+  const orphans = await orphanPaidRegistrations(range, ownerId);
+  const sold = [...(ownerId ? expanded.filter((l) => l.ownerId === ownerId) : expanded), ...orphans];
 
   const totals: Record<ProductKey, SalesCell & { missingNominal: number; byPaket: Map<string, number> }> = {
     COC: { ...emptyCell(), missingNominal: 0, byPaket: new Map() },
@@ -313,4 +317,114 @@ export async function getAdminPerformance(range: Pick<DateRange, "start" | "end"
     .filter((a) => onlyUserId || a.role === "ADMIN" || a.totalLeads > 0 || a.sold > 0);
 
   return { rows, sales, contactLabel: hasRange ? "Dihubungi (periode)" : "Dihubungi 7 hari" };
+}
+
+/** Nominal di bawah ini = transaksi uji (mis. Rp1), tidak dihitung sebagai penjualan */
+const TEST_AMOUNT = 10_000;
+
+/**
+ * Pendaftaran lunas (web/aktivasi) yang TIDAK punya lead di Master Lead (invoiceId = kode, atau sourceLeadId) →
+ * baris penjualan pengganti dengan owner = admin penanggung jawab pendaftaran. Mencegah penjualan hilang dari
+ * statistik bila lead-nya dihapus/tidak pernah dibuat; tiap transaksi tetap dihitung satu kali.
+ */
+async function orphanPaidRegistrations(range: Pick<DateRange, "start" | "end">, ownerId?: number) {
+  const regs = await prisma.registration.findMany({
+    where: {
+      status: "PAID",
+      amount: { gte: TEST_AMOUNT },
+      paidAt: prismaRange(range) ?? { not: null },
+      ...(ownerId ? { adminId: ownerId } : {}),
+    },
+    select: { id: true, code: true, fullName: true, phone: true, email: true, adminId: true, amount: true, paidAt: true, createdAt: true, source: true, sourceLeadId: true, sessionsBought: true, product: { select: { name: true, type: true } } },
+  });
+  if (!regs.length) return [];
+  const [byInvoice, bySource] = await Promise.all([
+    prisma.lead.findMany({ where: { invoiceId: { in: regs.map((r) => r.code) } }, select: { invoiceId: true } }),
+    prisma.lead.findMany({ where: { id: { in: regs.map((r) => r.sourceLeadId).filter((x): x is number => !!x) } }, select: { id: true } }),
+  ]);
+  const codes = new Set(byInvoice.map((l) => l.invoiceId));
+  const ids = new Set(bySource.map((l) => l.id));
+  return regs
+    .filter((r) => !codes.has(r.code) && !(r.sourceLeadId && ids.has(r.sourceLeadId)))
+    .map((r) => ({
+      id: -r.id,
+      nama: r.fullName,
+      noWa: r.phone,
+      email: r.email,
+      statusFunnel: "Paid",
+      tanggalMasuk: r.createdAt,
+      invoiceId: r.code,
+      ownerId: r.adminId,
+      originalOwnerId: r.adminId,
+      produk: r.product?.type === "PRIVATE" ? "VIP Privat" : "COC",
+      paket: r.product ? (r.sessionsBought ? `${r.product.name} · ${r.sessionsBought}x pertemuan` : r.product.name) : null,
+      nominal: r.amount,
+      tanggalBayar: r.paidAt,
+      sumberLead: registrationLeadSource(r.source ?? ""),
+      attributedFrom: null,
+      paidBeforeLead: false,
+      /** baris ini berasal langsung dari transaksi (lead tidak ada di Master Lead) */
+      fromRegistration: true as const,
+    }));
+}
+
+type SoldLeadRow = {
+  id: number;
+  nama: string;
+  noWa: string | null;
+  email: string | null;
+  statusFunnel: string;
+  tanggalMasuk: Date;
+  invoiceId: string | null;
+  ownerId: number | null;
+  produk: string | null;
+  paket: string | null;
+  nominal: number | null;
+  tanggalBayar: Date | null;
+  sumberLead: string;
+};
+
+/**
+ * Transaksi lunas TAMBAHAN milik satu lead (kode ≠ invoice lead, tertaut lewat sourceLeadId / invoice) → baris penjualan
+ * sendiri dengan tanggal & nominal transaksi. Owner = owner lead (aturan kredit sama: transaksi yang dibayar sebelum lead
+ * masuk ke admin tidak dikreditkan). Transaksi utama lead tetap diwakili baris lead-nya.
+ */
+async function extraLinkedRegistrations(leads: SoldLeadRow[], attributed: Attributed) {
+  if (!leads.length) return [];
+  const byInvoice = new Map(leads.filter((l) => l.invoiceId).map((l) => [l.invoiceId!, l]));
+  const byId = new Map(leads.map((l) => [l.id, l]));
+  const regs = await prisma.registration.findMany({
+    where: { status: "PAID", amount: { gte: TEST_AMOUNT }, paidAt: { not: null }, OR: [{ sourceLeadId: { in: [...byId.keys()] } }, { code: { in: [...byInvoice.keys()] } }] },
+    select: { id: true, code: true, amount: true, paidAt: true, sourceLeadId: true, sessionsBought: true, product: { select: { name: true, type: true } } },
+  });
+  // kelompokkan per lead
+  const perLead = new Map<number, typeof regs>();
+  for (const r of regs) {
+    const lead = byInvoice.get(r.code) ?? (r.sourceLeadId ? byId.get(r.sourceLeadId) : undefined);
+    if (!lead) continue;
+    perLead.set(lead.id, [...(perLead.get(lead.id) ?? []), r]);
+  }
+  const out = [];
+  for (const [leadId, list] of perLead) {
+    if (list.length < 2) continue;
+    const lead = byId.get(leadId)!;
+    // transaksi utama = kode invoice lead, atau yang tanggal lunasnya paling dekat dengan tanggal bayar lead
+    const ref = lead.tanggalBayar?.getTime() ?? 0;
+    const primary = list.find((r) => r.code === lead.invoiceId) ?? [...list].sort((a, b) => Math.abs(a.paidAt!.getTime() - ref) - Math.abs(b.paidAt!.getTime() - ref))[0];
+    for (const r of list) {
+      if (r.id === primary.id) continue;
+      const row = { ...lead, tanggalBayar: r.paidAt, nominal: r.amount };
+      out.push({
+        ...row,
+        id: -1_000_000 - r.id,
+        invoiceId: r.code,
+        produk: r.product?.type === "PRIVATE" ? "VIP Privat" : "COC",
+        paket: r.product ? (r.sessionsBought ? `${r.product.name} · ${r.sessionsBought}x pertemuan` : r.product.name) : lead.paket,
+        ...creditedOwner(row, attributed),
+        originalOwnerId: lead.ownerId,
+        fromRegistration: false,
+      });
+    }
+  }
+  return out;
 }

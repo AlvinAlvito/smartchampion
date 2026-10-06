@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser, getSession, isPanel } from "@/lib/session";
 import { REGISTRATION_SOURCES } from "@/lib/constants";
+import { registrationLeadSource } from "@/lib/constants";
 import { normalizePhone } from "@/lib/utils";
 import { applyRegistrationStatus, generateRegistrationCode } from "@/lib/payments";
 import { createSnapTransaction, getTransactionStatus, mapMidtransStatus, midtransEnabled, simulationEnabled } from "@/lib/midtrans";
@@ -23,13 +24,7 @@ const Schema = z.object({
   source: z.enum(REGISTRATION_SOURCES, { message: "Pilih dari mana kamu mendapat info" }),
 });
 
-/** Nama sumber di form → nama sumber baku di Master Lead */
-function toLeadSource(source: string) {
-  if (source === "Blast WA / Telepon") return "Blast WA (RFM)";
-  if (source === "Bundling Paket Lengkap") return "Bundling POSI";
-  if (["WhatsApp Admin", "Instagram", "Tiktok SC", "Telegram"].includes(source)) return "Organic";
-  return source;
-}
+const toLeadSource = registrationLeadSource;
 
 export async function registerCocAction(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   const session = await requireUser(["PESERTA"]);

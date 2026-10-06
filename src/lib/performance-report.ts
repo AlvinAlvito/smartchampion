@@ -4,7 +4,7 @@ import { prisma } from "./prisma";
 import type { SessionPayload } from "./session";
 import { readDateRange, type DateRange } from "./date-range";
 import { getAdminPerformance, getProductSales } from "./stats";
-import { attributeOwners, creditedOwner, detectPaidAcrossData } from "./attribution";
+import { detectPaidAcrossData } from "./attribution";
 import { FUNNEL_STATUSES } from "./constants";
 
 /**
@@ -113,14 +113,8 @@ export async function buildPerformanceReport(range: DateRange, scope: ReportScop
     owner: { select: { name: true } },
   } satisfies Prisma.LeadSelect;
 
-  const [cohort, paidLeadsRaw, blasts, overdueLeads, contacted, regs, sales, adminPerf, allContacts, staff] = await Promise.all([
+  const [cohort, blasts, overdueLeads, contacted, regs, sales, adminPerf, allContacts, staff] = await Promise.all([
     prisma.lead.findMany({ where: { ...owner, ...(rf ? { tanggalMasuk: rf } : {}) }, select: leadSelect }),
-    prisma.lead.findMany({
-      // tanpa owner ikut diambil → bisa dikreditkan ke admin lewat pencocokan identitas (sama dengan halaman Performa)
-      where: { ...(scope.ownerId ? { OR: [{ ownerId: scope.ownerId }, { ownerId: null }] } : {}), statusFunnel: "Paid", ...(rf ? { tanggalBayar: rf } : {}) },
-      select: leadSelect,
-      orderBy: { tanggalBayar: "desc" },
-    }),
     prisma.blast.findMany({
       where: { ...blastOwner, ...(rf ? { tanggal: rf } : {}) },
       select: { id: true, tanggal: true, asalBlast: true, jenjang: true, provinsi: true, noHp: true, email: true, ownerId: true },
@@ -143,13 +137,10 @@ export async function buildPerformanceReport(range: DateRange, scope: ReportScop
   ]);
 
   const staffName = new Map(staff.map((s) => [s.id, s.name]));
-  const attributed = await attributeOwners(paidLeadsRaw);
-  const paidLeads = paidLeadsRaw
-    .map((l) => {
-      const { ownerId } = creditedOwner(l, attributed);
-      return { ...l, ownerId, owner: ownerId ? { name: staffName.get(ownerId) ?? `User #${ownerId}` } : null };
-    })
-    .filter((l) => !scope.ownerId || l.ownerId === scope.ownerId);
+  // penjualan = sumber yang sama dengan grafik & Excel penjualan (lead Paid + transaksi web lunas tanpa lead; aturan kredit owner)
+  const paidLeads = sales.soldLeads
+    .map((l) => ({ ...l, owner: l.ownerId ? { name: staffName.get(l.ownerId) ?? `User #${l.ownerId}` } : null }))
+    .sort((a, b) => (b.tanggalBayar?.getTime() ?? 0) - (a.tanggalBayar?.getTime() ?? 0));
   // lead yang belum Paid tetapi orangnya sudah membayar menurut data lain
   const detected = await detectPaidAcrossData(cohort);
   const isPaid = (l: (typeof cohort)[number]) => l.statusFunnel === "Paid" || detected.has(l.id);
