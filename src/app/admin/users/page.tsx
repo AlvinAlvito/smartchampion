@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Prisma, Role } from "@prisma/client";
 import { Filter, RotateCcw, Search, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { requireSuperadmin } from "@/lib/session";
+import { requirePanel } from "@/lib/session";
 import { ROLE_LABEL } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { PageTitle } from "@/components/ui";
@@ -22,9 +22,11 @@ const TABS = [
 ];
 
 export default async function UsersPage({ searchParams }: PageProps<"/admin/users">) {
-  const session = await requireSuperadmin();
+  const session = await requirePanel();
+  // Admin Pelatihan & Admin SmartChampion: hanya akun peserta (akun tim tidak ditampilkan)
+  const pesertaOnly = session.role === "ADMIN" || session.role === "SMARTCHAMPION";
   const sp = await searchParams;
-  const role = typeof sp.role === "string" && sp.role in ROLE_LABEL ? (sp.role as Role) : undefined;
+  const role = pesertaOnly ? ("PESERTA" as Role) : typeof sp.role === "string" && sp.role in ROLE_LABEL ? (sp.role as Role) : undefined;
   const { page, skip, take } = readPage(sp);
   const get = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string).trim() : "");
   // Filter khusus tab Peserta
@@ -68,11 +70,15 @@ export default async function UsersPage({ searchParams }: PageProps<"/admin/user
     <>
       <PageTitle
         icon={Users}
-        eyebrow="Root"
+        eyebrow={pesertaOnly ? "Akun peserta" : "Root"}
         title="Pengguna"
-        subtitle="Kelola akun root, superadmin (lihat saja), admin pelatihan, admin SmartChampion, dan peserta."
+        subtitle={
+          pesertaOnly
+            ? "Kelola akun peserta: data, email login, password, dan status aktif. Akun tim/admin tidak ditampilkan di sini."
+            : "Kelola akun root, superadmin (lihat saja), admin pelatihan, admin SmartChampion, dan peserta."
+        }
       />
-      <div className="card mb-5 flex gap-1.5 overflow-x-auto p-1.5!">
+      <div className={cn("card mb-5 flex gap-1.5 overflow-x-auto p-1.5!", pesertaOnly && "hidden")}>
         {TABS.map((t) => (
           <Link
             key={t.l}
@@ -130,7 +136,8 @@ export default async function UsersPage({ searchParams }: PageProps<"/admin/user
       )}
       <UsersTable
         meId={session.userId}
-        canImpersonate={session.role === "ROOT"}
+        canImpersonate={session.role === "ROOT" || session.role === "ADMIN"}
+        pesertaOnly={pesertaOnly}
         users={users.map((u) => ({
           id: u.id,
           name: u.name,
@@ -138,6 +145,7 @@ export default async function UsersPage({ searchParams }: PageProps<"/admin/user
           domisili: u.kabKota ? `${u.kabKota}, ${u.provinsi}` : null,
           email: u.email,
           phone: u.phone,
+          school: u.school,
           role: u.role,
           isActive: u.isActive,
           createdAt: u.createdAt,

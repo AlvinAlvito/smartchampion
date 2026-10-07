@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "./prisma";
 import { attributeOwners, creditedOwner, detectPaidAcrossData, type Attributed } from "./attribution";
 import type { ProductType } from "@prisma/client";
-import { FUNNEL_STATUSES, PRODUCT_TYPE_LABEL, registrationLeadSource } from "./constants";
+import { FUNNEL_STATUSES, PRODUCT_TYPE_LABEL, leadProductOf, registrationLeadSource } from "./constants";
 import { inRange, prismaRange, type DateRange } from "./date-range";
 
 const DAY = 86_400_000;
@@ -356,7 +356,7 @@ async function orphanPaidRegistrations(range: Pick<DateRange, "start" | "end">, 
       invoiceId: r.code,
       ownerId: r.adminId,
       originalOwnerId: r.adminId,
-      produk: r.product?.type === "PRIVATE" ? "VIP Privat" : "COC",
+      produk: leadProductOf(r.product?.type),
       paket: r.product ? (r.sessionsBought ? `${r.product.name} · ${r.sessionsBought}x pertemuan` : r.product.name) : null,
       nominal: r.amount,
       tanggalBayar: r.paidAt,
@@ -418,7 +418,7 @@ async function extraLinkedRegistrations(leads: SoldLeadRow[], attributed: Attrib
         ...row,
         id: -1_000_000 - r.id,
         invoiceId: r.code,
-        produk: r.product?.type === "PRIVATE" ? "VIP Privat" : "COC",
+        produk: leadProductOf(r.product?.type),
         paket: r.product ? (r.sessionsBought ? `${r.product.name} · ${r.sessionsBought}x pertemuan` : r.product.name) : lead.paket,
         ...creditedOwner(row, attributed),
         originalOwnerId: lead.ownerId,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, Crown, Pencil, Plus, Save, Users } from "lucide-react";
+import { BookOpen, Crown, Pencil, Plus, Save, Shapes, Users } from "lucide-react";
 import { saveProductAction } from "@/app/actions/products";
 import { JENJANG_LABEL, PRODUCT_STATUS_LABEL } from "@/lib/constants";
 import { cn, toDateInput } from "@/lib/utils";
@@ -30,6 +30,7 @@ export type ProductValues = {
   status: string;
   type: string;
   quotaDisplay: string;
+  sessionCount?: number | null;
 };
 
 const FORM_ID = "product-form";
@@ -39,6 +40,7 @@ export function ProductDialog({ product, onClose }: { product: ProductValues | n
   const v = product;
   const [type, setType] = useState(v?.type ?? "COC");
   const vip = type === "PRIVATE";
+  const other = type === "OTHER";
   return (
     <Modal
       open
@@ -61,10 +63,11 @@ export function ProductDialog({ product, onClose }: { product: ProductValues | n
       <form {...formProps} id={FORM_ID} className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <p className="label">Jenis produk *</p>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-3">
             {[
               { v: "COC", l: "Kelas Grup (COC)", d: "Harga per bulan · mulai setelah kuota minimal terpenuhi", icon: Users },
               { v: "PRIVATE", l: "VIP Privat", d: "Harga per pertemuan · peserta membeli paket pertemuan", icon: Crown },
+              { v: "OTHER", l: "Lainnya", d: "Sekali bayar · jumlah pertemuan bebas (1x, 2x, 3x, …) · tanpa kuota minimal", icon: Shapes },
             ].map((o) => (
               <label
                 key={o.v}
@@ -125,22 +128,40 @@ export function ProductDialog({ product, onClose }: { product: ProductValues | n
           >
             <input id="price" name="price" type="number" min={0} defaultValue={v?.type === "PRIVATE" ? v.price : 300000} className="input" />
           </Field>
+        ) : other ? (
+          <div key="price-other" className="grid grid-cols-2 gap-3">
+            <Field label="Harga (Rp) *" htmlFor="price" errors={fe?.price} hint="Sekali bayar untuk seluruh pertemuan">
+              <input id="price" name="price" type="number" min={0} defaultValue={v?.type === "OTHER" ? v.price : 150000} className="input" />
+            </Field>
+            <Field label="Per" htmlFor="priceUnit">
+              <input id="priceUnit" name="priceUnit" defaultValue={v?.type === "OTHER" ? v.priceUnit : "paket"} className="input" />
+            </Field>
+          </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div key="price-coc" className="grid grid-cols-2 gap-3">
             <Field label="Harga (Rp) *" htmlFor="price" errors={fe?.price}>
               <input id="price" name="price" type="number" min={0} defaultValue={v?.price ?? 299000} className="input" />
             </Field>
             <Field label="Per" htmlFor="priceUnit">
-              <input id="priceUnit" name="priceUnit" defaultValue={v?.type === "PRIVATE" ? "bulan" : (v?.priceUnit ?? "bulan")} className="input" />
+              <input id="priceUnit" name="priceUnit" defaultValue={v?.type === "PRIVATE" || v?.type === "OTHER" ? "bulan" : (v?.priceUnit ?? "bulan")} className="input" />
             </Field>
           </div>
         )}
-        {vip ? (
+        {other ? (
+          <div key="quota-other" className="grid grid-cols-2 gap-3">
+            <Field label="Jumlah pertemuan *" htmlFor="sessionCount" errors={fe?.sessionCount} hint="Bebas: 1x, 2x, 3x, …">
+              <input id="sessionCount" name="sessionCount" type="number" min={1} max={100} defaultValue={v?.sessionCount ?? 1} className="input" />
+            </Field>
+            <Field label="Kapasitas maksimal" htmlFor="maxQuota" hint="Opsional">
+              <input id="maxQuota" name="maxQuota" type="number" min={1} defaultValue={v?.maxQuota ?? ""} className="input" placeholder="tanpa batas" />
+            </Field>
+          </div>
+        ) : vip ? (
           <p className="self-end rounded-2xl bg-amber-50 px-4 py-3 text-xs text-amber-800 ring-1 ring-amber-100">
             VIP Privat tidak memakai kuota minimal peserta — jadwal diatur langsung bersama tutor.
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div key="quota-coc" className="grid grid-cols-2 gap-3">
             <Field label="Kuota minimal" htmlFor="minQuota">
               <input id="minQuota" name="minQuota" type="number" min={1} defaultValue={v?.minQuota ?? 15} className="input" />
             </Field>
@@ -149,7 +170,7 @@ export function ProductDialog({ product, onClose }: { product: ProductValues | n
             </Field>
           </div>
         )}
-        {!vip && (
+        {!vip && !other && (
           <Field
             label="Tampilkan progres kuota di katalog"
             htmlFor="quotaDisplay"

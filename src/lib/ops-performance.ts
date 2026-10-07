@@ -202,7 +202,7 @@ export async function buildOpsReport(range: Pick<DateRange, "start" | "end" | "l
   /* ---------- KPI kualitas operasional (kondisi data tim) ---------- */
   const past = { startAt: { gte: start, lt: end }, endAt: { lt: now } };
   const next7 = { startAt: { gte: now, lt: new Date(now.getTime() + 7 * DAY) } };
-  const activeClass = { status: { in: ["OPEN", "RUNNING"] as ("OPEN" | "RUNNING")[] }, type: "COC" as const };
+  const activeClass = { status: { in: ["OPEN", "RUNNING"] as ("OPEN" | "RUNNING")[] }, type: { in: ["COC", "OTHER"] as ("COC" | "OTHER")[] } };
   const [pastSessions, withAttendance, withWorksheet, withRecording, upcoming, upcomingLinked, classes, classesWithSessions, classesWithTutor, pubGames, pubTutors, goodTutors] =
     await Promise.all([
       prisma.classSession.count({ where: past }),

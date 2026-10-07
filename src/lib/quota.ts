@@ -18,7 +18,7 @@ type QuotaInfo = { paidCount: number; minQuota: number; quotaDisplay?: string | 
 
 /** Progres kuota boleh ditampilkan ke publik? (VIP Privat tidak memakai kuota) */
 export function quotaVisible(p: QuotaInfo) {
-  if (p.type === "PRIVATE" || p.quotaDisplay === "HIDDEN") return false;
+  if (p.type === "PRIVATE" || p.type === "OTHER" || p.quotaDisplay === "HIDDEN") return false;
   if (p.quotaDisplay === "ALWAYS") return true;
   return p.paidCount >= QUOTA_SHOW_MIN;
 }
@@ -34,6 +34,6 @@ export function quotaHype(p: QuotaInfo): { text: string; tone: "hot" | "star" } 
 
 /** Urutan katalog: paling mendekati/melewati kuota di atas; VIP Privat (tanpa kuota) di akhir */
 export function byFillDesc<T extends QuotaInfo & { name: string }>(a: T, b: T) {
-  const r = (p: T) => (p.type === "PRIVATE" ? -1 : p.paidCount / Math.max(1, p.minQuota));
+  const r = (p: T) => (p.type === "PRIVATE" || p.type === "OTHER" ? -1 : p.paidCount / Math.max(1, p.minQuota));
   return r(b) - r(a) || b.paidCount - a.paidCount || a.name.localeCompare(b.name, "id");
 }

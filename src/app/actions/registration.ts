@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser, getSession, isPanel } from "@/lib/session";
 import { REGISTRATION_SOURCES } from "@/lib/constants";
-import { registrationLeadSource } from "@/lib/constants";
+import { leadProductOf, registrationLeadSource } from "@/lib/constants";
 import { normalizePhone } from "@/lib/utils";
 import { applyRegistrationStatus, generateRegistrationCode } from "@/lib/payments";
 import { createSnapTransaction, getTransactionStatus, mapMidtransStatus, midtransEnabled, simulationEnabled } from "@/lib/midtrans";
@@ -86,7 +86,7 @@ export async function registerCocAction(_prev: ActionResult | undefined, formDat
         sumberLead: toLeadSource(d.source),
         campaign: `Web pendaftaran (${d.source})`,
         kategori: "Calon Customer",
-        produk: vip ? "VIP Privat" : "COC",
+        produk: leadProductOf(product.type),
         paket: pkg ? `${product.name} · ${pkg.sessions}x pertemuan` : product.name,
         ownerId: adminId,
         statusFunnel: "Pending",

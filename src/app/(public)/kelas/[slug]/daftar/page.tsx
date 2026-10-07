@@ -63,7 +63,7 @@ export default async function DaftarPage({ params, searchParams }: PageProps<"/k
 
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="card animate-fade-up p-6 sm:p-8 lg:col-span-2">
-            <h1 className="text-2xl font-extrabold text-navy-900">{vip ? "Form Pendaftaran VIP Privat" : "Form Pendaftaran COC 2026"}</h1>
+            <h1 className="text-2xl font-extrabold text-navy-900">{vip ? "Form Pendaftaran VIP Privat" : product.type === "OTHER" ? "Form Pendaftaran Kelas" : "Form Pendaftaran COC 2026"}</h1>
             <p className="mb-7 mt-1 text-sm text-navy-400">Data sudah terisi dari akunmu. Periksa lagi, lalu lanjut ke pembayaran.</p>
             <RegistrationForm
               productId={product.id}
@@ -93,7 +93,10 @@ export default async function DaftarPage({ params, searchParams }: PageProps<"/k
               ) : (
                 <>
                   <p className="relative mt-4 text-3xl font-extrabold">{formatRupiah(product.price)}</p>
-                  <p className="relative text-sm text-navy-200">per {product.priceUnit}</p>
+                  <p className="relative text-sm text-navy-200">
+                    per {product.priceUnit}
+                    {product.type === "OTHER" ? ` · ${product.sessionCount ?? 1}x pertemuan` : ""}
+                  </p>
                 </>
               )}
             </div>

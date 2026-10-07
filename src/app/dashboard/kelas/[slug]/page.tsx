@@ -336,9 +336,15 @@ export default async function KelasSayaPage({ params }: PageProps<"/dashboard/ke
           ) : (
             <div className="card space-y-3">
               <p className="font-bold text-navy-900">Status kelas</p>
-              <QuotaBar filled={filled} min={product.minQuota} />
+              {product.type === "OTHER" ? (
+                <p className="text-sm font-semibold text-navy-700">Program {product.sessionCount ?? 1}x pertemuan</p>
+              ) : (
+                <QuotaBar filled={filled} min={product.minQuota} />
+              )}
               <p className="text-xs text-navy-400">
-                {filled >= product.minQuota
+                {product.type === "OTHER"
+                  ? "Jadwal & link pertemuan tampil di halaman ini setelah diumumkan admin."
+                  : filled >= product.minQuota
                   ? "Kuota terpenuhi, kelas berjalan sesuai jadwal."
                   : "Kelas dimulai setelah kuota minimal terpenuhi. Ajak teman satu bidang biar cepat mulai!"}
               </p>

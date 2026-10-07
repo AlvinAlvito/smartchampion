@@ -286,7 +286,7 @@ export function RegistrationsTable({
                 <td className="max-w-[220px] truncate text-xs font-medium text-navy-700">
                   {r.product ? (
                     <>
-                      <Badge tone={r.product.type === "COC" ? "brand" : "yellow"} className="mb-1">
+                      <Badge tone={r.product.type === "COC" ? "brand" : r.product.type === "OTHER" ? "blue" : "yellow"} className="mb-1">
                         {PRODUCT_TYPE_LABEL[r.product.type] ?? r.product.type}
                       </Badge>
                       <span className="block truncate">{r.product.name}</span>

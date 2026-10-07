@@ -102,6 +102,9 @@ export default async function ProductDetailPage({ params }: PageProps<"/admin/pr
                 <span className="badge bg-white/15 text-white">{JENJANG_LABEL[product.jenjang]}</span>
                 <span className="badge bg-white/15 text-white">{product.level}</span>
                 {vip && <span className="badge bg-amber-400 text-navy-950">VIP Privat</span>}
+                {product.type === "OTHER" && (
+                  <span className="badge bg-sky-300 text-navy-950">Lainnya · {product.sessionCount ?? "?"}x pertemuan</span>
+                )}
               </div>
               <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">{product.name}</h1>
               <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-navy-200">
@@ -181,6 +184,12 @@ export default async function ProductDetailPage({ params }: PageProps<"/admin/pr
           </p>
           {vip ? (
             <p className="text-sm text-navy-500">{registrations.length} peserta VIP aktif · jadwal diatur bersama tutor.</p>
+          ) : product.type === "OTHER" ? (
+            <p className="text-sm text-navy-500">
+              <b className="text-navy-900">{registrations.length}</b>
+              {product.maxQuota ? `/${product.maxQuota}` : ""} peserta lunas · program {product.sessionCount ?? "?"}x pertemuan (
+              {sessions.length} jadwal dibuat).
+            </p>
           ) : (
             <QuotaBar filled={registrations.length} min={product.minQuota} />
           )}

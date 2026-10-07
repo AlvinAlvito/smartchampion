@@ -78,7 +78,7 @@ export async function saveLeadAction(_prev: ActionResult | undefined, form: Form
     const saved = id ? await prisma.lead.update({ where: { id }, data }) : await prisma.lead.create({ data });
     await syncRegistrationAdmin(saved.invoiceId, saved.ownerId);
     if (managesClass && linkedRegistration) {
-      if (targetProduct && targetProduct.id !== linkedRegistration.productId && targetProduct.type === "COC") {
+      if (targetProduct && targetProduct.id !== linkedRegistration.productId && targetProduct.type !== "PRIVATE") {
         const duplicate = await prisma.registration.findFirst({
           where: { id: { not: linkedRegistration.id }, user: { email: saved.email ?? "" }, productId: targetProduct.id, status: "PAID" },
           select: { code: true },
@@ -90,7 +90,7 @@ export async function saveLeadAction(_prev: ActionResult | undefined, form: Form
         data: {
           productId: targetProduct?.id ?? null,
           packageId: targetProduct?.type === "PRIVATE" ? undefined : null,
-          ...(targetProduct?.type === "COC" ? { sessionsBought: null, sessionsDone: 0 } : {}),
+          ...((targetProduct && targetProduct.type !== "PRIVATE") ? { sessionsBought: null, sessionsDone: 0 } : {}),
         },
       });
       revalidatePath("/admin/pendaftar");

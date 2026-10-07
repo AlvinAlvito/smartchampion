@@ -46,6 +46,7 @@ export default async function KelasDetailPage({ params }: PageProps<"/kelas/[slu
   const paid = counts.get(product.id) ?? 0;
   const canRegister = ["OPEN", "RUNNING"].includes(product.status);
   const vip = product.type === "PRIVATE";
+  const other = product.type === "OTHER";
   const showQuota = quotaVisible({ ...product, paidCount: paid });
   const hype = showQuota ? quotaHype({ ...product, paidCount: paid }) : null;
   const myRegs = session
@@ -169,7 +170,11 @@ export default async function KelasDetailPage({ params }: PageProps<"/kelas/[slu
             ) : (
               <p className="flex items-center gap-2 text-sm text-navy-400">
                 <CalendarClock className="h-4 w-4" />{" "}
-                {vip ? "Jadwal privat diatur bersama tutor setelah pembayaran, menyesuaikan waktu luangmu." : `Jadwal pertemuan diumumkan setelah kuota minimal ${product.minQuota} peserta terpenuhi.`}
+                {vip
+                  ? "Jadwal privat diatur bersama tutor setelah pembayaran, menyesuaikan waktu luangmu."
+                  : other
+                    ? `Program ${product.sessionCount ?? 1}x pertemuan — jadwal diumumkan admin kepada peserta yang sudah terdaftar.`
+                    : `Jadwal pertemuan diumumkan setelah kuota minimal ${product.minQuota} peserta terpenuhi.`}
               </p>
             )}
           </div>
@@ -230,7 +235,10 @@ export default async function KelasDetailPage({ params }: PageProps<"/kelas/[slu
             <div className="bg-linear-to-br from-brand-50 to-white p-6">
               <p className="text-xs font-bold uppercase tracking-wider text-navy-400">Biaya kelas</p>
               <p className="mt-1 text-4xl font-extrabold tracking-tight text-navy-900">{formatRupiah(product.price)}</p>
-              <p className="text-sm text-navy-400">per {product.priceUnit}</p>
+              <p className="text-sm text-navy-400">
+                per {product.priceUnit}
+                {other ? ` · ${product.sessionCount ?? 1}x pertemuan` : ""}
+              </p>
             </div>
             <div className="space-y-5 p-6">
               {showQuota ? (
@@ -274,7 +282,8 @@ export default async function KelasDetailPage({ params }: PageProps<"/kelas/[slu
               )}
               <ul className="space-y-2 border-t border-navy-50 pt-4 text-xs text-navy-500">
                 <li className="flex gap-2">
-                  <Users className="h-4 w-4 shrink-0 text-brand-500" /> Kelas mulai setelah minimal {product.minQuota} peserta lunas.
+                  <Users className="h-4 w-4 shrink-0 text-brand-500" />{" "}
+                  {other ? `${product.sessionCount ?? 1}x pertemuan, dibayar sekali untuk seluruh pertemuan.` : `Kelas mulai setelah minimal ${product.minQuota} peserta lunas.`}
                 </li>
                 <li className="flex gap-2">
                   <Gamepad2 className="h-4 w-4 shrink-0 text-brand-500" /> Selama menunggu, materi awal & games sudah bisa diakses.

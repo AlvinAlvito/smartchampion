@@ -162,7 +162,7 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/adm
                 <td className="max-w-[220px] text-xs">
                   {r.product ? (
                     <>
-                      <Badge tone={r.product.type === "COC" ? "brand" : "yellow"}>{PRODUCT_TYPE_LABEL[r.product.type] ?? r.product.type}</Badge>
+                      <Badge tone={r.product.type === "COC" ? "brand" : r.product.type === "OTHER" ? "blue" : "yellow"}>{PRODUCT_TYPE_LABEL[r.product.type] ?? r.product.type}</Badge>
                       <span className="mt-0.5 block truncate font-medium text-navy-700">{r.product.name}</span>
                       {r.sessionsBought ? <span className="block text-amber-700">Paket {r.sessionsBought}x pertemuan</span> : null}
                     </>

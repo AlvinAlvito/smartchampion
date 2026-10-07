@@ -26,7 +26,7 @@ export async function updateRegistrationAction(_prev: ActionResult | undefined, 
     ? await prisma.product.findFirst({ where: { id: requestedProductId, status: { not: "DRAFT" } }, select: { id: true, name: true, type: true } })
     : null;
   if (requestedProductId && !targetProduct) return { fieldErrors: { productId: ["Kelas tujuan tidak ditemukan atau masih berupa draf."] } };
-  if (targetProduct && targetProduct.id !== reg.productId && targetProduct.type === "COC") {
+  if (targetProduct && targetProduct.id !== reg.productId && targetProduct.type !== "PRIVATE") {
     const duplicate = await prisma.registration.findFirst({
       where: { id: { not: id }, userId: reg.userId, productId: targetProduct.id, status: "PAID" },
       select: { code: true, fullName: true },
@@ -50,7 +50,7 @@ export async function updateRegistrationAction(_prev: ActionResult | undefined, 
       sessionsDone,
       productId: targetProduct?.id ?? null,
       packageId: targetProduct?.type === "PRIVATE" ? reg.packageId : null,
-      ...(targetProduct?.type === "COC" ? { sessionsBought: null, sessionsDone: 0 } : {}),
+      ...((targetProduct && targetProduct.type !== "PRIVATE") ? { sessionsBought: null, sessionsDone: 0 } : {}),
     },
   });
   await prisma.lead.updateMany({

@@ -32,8 +32,10 @@ type Props = {
     priceUnit: string;
     minQuota: number;
     paidCount: number;
-    /** COC / PRIVATE */
+    /** COC / PRIVATE / OTHER */
     type?: string;
+    /** jumlah pertemuan produk "Lainnya" */
+    sessionCount?: number | null;
     /** AUTO | ALWAYS | HIDDEN — lihat lib/quota.ts */
     quotaDisplay?: string | null;
   };
@@ -42,6 +44,7 @@ type Props = {
 export function ProductCard({ product: p }: Props) {
   const { icon: Icon, gradient } = subjectVisual(p.bidang);
   const vip = p.type === "PRIVATE";
+  const other = p.type === "OTHER";
   const showQuota = quotaVisible(p);
   const hype = showQuota ? quotaHype(p) : null;
   const almost = showQuota && p.paidCount < p.minQuota && p.minQuota - p.paidCount <= 5;
@@ -73,6 +76,10 @@ export function ProductCard({ product: p }: Props) {
         {vip ? (
           <p className="flex items-center gap-2 rounded-2xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
             <CalendarCheck className="h-4 w-4 shrink-0" /> 1-on-1 bersama tutor · pilih paket pertemuan · jadwal fleksibel
+          </p>
+        ) : other ? (
+          <p className="flex items-center gap-2 rounded-2xl bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-800">
+            <CalendarCheck className="h-4 w-4 shrink-0" /> {p.sessionCount ?? 1}x pertemuan · sekali bayar
           </p>
         ) : showQuota ? (
           <div className="space-y-2">

@@ -63,7 +63,7 @@ export async function collectOpsWorkload(ownerId: number, date: string, year: nu
   const weekEnd = wibStart(addDays(dates[6], 1));
   const since14 = new Date(dayEnd.getTime() - 14 * DAY);
   const ended = { endAt: { lt: now, gte: since14 } };
-  const active = { status: { in: ["OPEN", "RUNNING"] as ("OPEN" | "RUNNING")[] }, type: "COC" as const };
+  const active = { status: { in: ["OPEN", "RUNNING"] as ("OPEN" | "RUNNING")[] }, type: { in: ["COC", "OTHER"] as ("COC" | "OTHER")[] } };
   const pick = { title: true, startAt: true, product: { select: { name: true } } } as const;
   const item = (s: { title: string; startAt: Date; product: { name: string } }): OpsItem => ({ nama: `${s.product.name} · ${s.title}`, info: `${dm(s.startAt)} ${hhmm(s.startAt)}` });
 
@@ -91,7 +91,7 @@ export async function collectOpsWorkload(ownerId: number, date: string, year: nu
     prisma.product.findMany({ where: { ...active, startDate: { gte: dayStart, lt: new Date(dayStart.getTime() + 7 * DAY) } }, select: { name: true, startDate: true }, take: 10 }),
     // kelas yang semua pertemuannya sudah lewat & punya peserta lunas → sertifikat/rapor
     prisma.product.findMany({
-      where: { type: "COC", sessions: { some: {}, none: { endAt: { gte: now } } }, registrations: { some: { status: "PAID" } } },
+      where: { type: { in: ["COC", "OTHER"] }, sessions: { some: {}, none: { endAt: { gte: now } } }, registrations: { some: { status: "PAID" } } },
       select: { id: true, name: true, _count: { select: { registrations: { where: { status: "PAID" } } } } },
       take: 30,
     }),

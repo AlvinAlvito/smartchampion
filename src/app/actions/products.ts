@@ -34,8 +34,11 @@ export async function saveProductAction(_prev: ActionResult | undefined, form: F
   const minQuota = optInt(form, "minQuota") ?? 15;
   const jenjang = str(form, "jenjang") as Jenjang;
   const status = str(form, "status") as ProductStatus;
-  const type: ProductType = str(form, "type") === "PRIVATE" ? "PRIVATE" : "COC";
+  const rawType = str(form, "type");
+  const type: ProductType = rawType === "PRIVATE" ? "PRIVATE" : rawType === "OTHER" ? "OTHER" : "COC";
   const vip = type === "PRIVATE";
+  const other = type === "OTHER";
+  const sessionCount = optInt(form, "sessionCount");
 
   const fe: Record<string, string[]> = {};
   if (name.length < 3) fe.name = ["Nama kelas wajib diisi"];
@@ -44,6 +47,7 @@ export async function saveProductAction(_prev: ActionResult | undefined, form: F
   if (!JENJANG.includes(jenjang)) fe.jenjang = ["Pilih jenjang"];
   if (!STATUS.includes(status)) fe.status = ["Pilih status"];
   if (!str(form, "shortDesc")) fe.shortDesc = ["Deskripsi singkat wajib diisi"];
+  if (other && (!sessionCount || sessionCount < 1 || sessionCount > 100)) fe.sessionCount = ["Isi jumlah pertemuan 1–100"];
   const waGroup = parseWaGroupUrl(str(form, "waGroupUrl"));
   if (waGroup.error) fe.waGroupUrl = [waGroup.error];
   if (Object.keys(fe).length) return { fieldErrors: fe };
@@ -64,10 +68,12 @@ export async function saveProductAction(_prev: ActionResult | undefined, form: F
     type,
     price: price!,
     // VIP Privat: harga selalu per pertemuan & tanpa kuota minimal
-    priceUnit: vip ? "pertemuan" : str(form, "priceUnit") || "bulan",
-    minQuota: vip ? 1 : Math.max(1, minQuota),
+    // Lainnya: harga sekali bayar untuk seluruh pertemuan, tanpa kuota minimal (kapasitas opsional)
+    priceUnit: vip ? "pertemuan" : str(form, "priceUnit") || (other ? "paket" : "bulan"),
+    minQuota: vip || other ? 1 : Math.max(1, minQuota),
     maxQuota: vip ? null : optInt(form, "maxQuota"),
-    quotaDisplay: QUOTA_DISPLAY_VALUES.includes(str(form, "quotaDisplay")) ? str(form, "quotaDisplay") : "AUTO",
+    quotaDisplay: other ? "HIDDEN" : QUOTA_DISPLAY_VALUES.includes(str(form, "quotaDisplay")) ? str(form, "quotaDisplay") : "AUTO",
+    sessionCount: other ? sessionCount : null,
     scheduleInfo: optStr(form, "scheduleInfo"),
     waGroupUrl: waGroup.url,
     startDate: parseWibDate(form.get("startDate")),

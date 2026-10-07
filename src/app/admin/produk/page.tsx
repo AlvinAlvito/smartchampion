@@ -107,6 +107,11 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
                   <div className="min-w-0 flex-1">
                     <p className="font-bold leading-snug text-navy-900 group-hover:text-brand-700">
                       {p.name}
+                      {p.type === "OTHER" && (
+                        <span className="ml-1.5 inline-block rounded-md bg-sky-100 px-1.5 py-0.5 align-middle text-[10px] font-extrabold text-sky-800">
+                          LAINNYA · {p.sessionCount ?? "?"}x pertemuan
+                        </span>
+                      )}
                       {p.type === "PRIVATE" && (
                         <span className="ml-1.5 inline-block rounded-md bg-amber-400 px-1.5 py-0.5 align-middle text-[10px] font-extrabold text-navy-950">
                           VIP
@@ -123,8 +128,12 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
                 <div>
                   <div className="mb-1.5 flex justify-between text-xs">
                     <span className="font-semibold text-navy-600">
-                      {p.type === "PRIVATE" ? `${filled} peserta VIP aktif` : `${filled}/${p.minQuota} peserta lunas`}
-                      {p.type !== "PRIVATE" && (
+                      {p.type === "PRIVATE"
+                        ? `${filled} peserta VIP aktif`
+                        : p.type === "OTHER"
+                          ? `${filled}${p.maxQuota ? `/${p.maxQuota}` : ""} peserta lunas`
+                          : `${filled}/${p.minQuota} peserta lunas`}
+                      {p.type === "COC" && (
                         <span className="ml-1.5 font-normal text-navy-400" title="Tampilan progres kuota di katalog publik">
                           · {quotaVisible({ ...p, paidCount: filled }) ? "kuota tampil" : "kuota disembunyikan"}
                         </span>
@@ -132,7 +141,7 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
                     </span>
                     <Badge tone={statusTone(p.status)}>{PRODUCT_STATUS_LABEL[p.status]}</Badge>
                   </div>
-                  <div className={`h-2 overflow-hidden rounded-full bg-navy-50 ${p.type === "PRIVATE" ? "hidden" : ""}`}>
+                  <div className={`h-2 overflow-hidden rounded-full bg-navy-50 ${p.type !== "COC" ? "hidden" : ""}`}>
                     <div
                       className={`h-full rounded-full ${filled >= p.minQuota ? "bg-linear-to-r from-emerald-400 to-teal-500" : "bg-linear-to-r from-brand-500 to-navy-600"}`}
                       style={{ width: `${Math.max(pct, 3)}%` }}

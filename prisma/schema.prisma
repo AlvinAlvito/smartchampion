@@ -31,6 +31,8 @@ enum Jenjang {
 enum ProductType {
   COC
   PRIVATE
+  /// Lainnya: produk sekali bayar dengan jumlah pertemuan custom (1x, 2x, 3x, …), tanpa kuota minimal
+  OTHER
 }
 
 enum ProductStatus {
@@ -126,6 +128,8 @@ model Product {
   maxQuota           Int?
   /// Tampilan progres kuota di katalog: AUTO (tampil bila ≥ 10 peserta lunas) | ALWAYS | HIDDEN
   quotaDisplay       String        @default("AUTO") @db.VarChar(10)
+  /// jumlah pertemuan produk "Lainnya" (custom, mis. 1/2/3x); kosong untuk COC/VIP
+  sessionCount       Int?
   /// Sertifikat: gambar latar (privat, storage/certificates) & pengaturan tata letak (lihat lib/certificate.ts)
   certificateBgUrl   String?       @db.VarChar(255)
   certificateConfig  Json?

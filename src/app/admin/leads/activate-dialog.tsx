@@ -197,7 +197,7 @@ function EnrollClassDialog({
                   {suggested.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
-                      {p.type === "PRIVATE" ? " (VIP Privat)" : ""}
+                      {p.type === "PRIVATE" ? " (VIP Privat)" : p.type === "OTHER" ? " (Lainnya)" : ""}
                       {STATUS_LABEL[p.status] ?? ""}
                     </option>
                   ))}
@@ -207,7 +207,7 @@ function EnrollClassDialog({
                 {others.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
-                    {p.type === "PRIVATE" ? " (VIP Privat)" : ""}
+                    {p.type === "PRIVATE" ? " (VIP Privat)" : p.type === "OTHER" ? " (Lainnya)" : ""}
                     {STATUS_LABEL[p.status] ?? ""}
                   </option>
                 ))}

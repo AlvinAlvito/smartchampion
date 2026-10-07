@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { Jenjang } from "@prisma/client";
-import { Award, BookOpen, ChevronRight, GraduationCap, Layers, School, Search, Sparkles, Users, Crown } from "lucide-react";
+import { Award, BookOpen, ChevronRight, Crown, GraduationCap, Layers, School, Search, Shapes, Sparkles, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { TutorAvatar } from "@/components/tutor-avatar";
 import { getCatalog } from "@/lib/queries";
@@ -25,6 +25,7 @@ const TYPE_FILTERS = [
   { v: "", l: "Semua produk", icon: Layers },
   { v: "COC", l: "Kelas Grup (COC)", icon: Users },
   { v: "PRIVATE", l: "VIP Privat", icon: Crown },
+  { v: "OTHER", l: "Lainnya", icon: Shapes },
 ];
 
 const FILTERS = [
@@ -39,7 +40,7 @@ export default async function KatalogPage({ searchParams }: PageProps<"/kelas">)
   const sp = await searchParams;
   const jenjang = typeof sp.jenjang === "string" ? sp.jenjang : "";
   const q = typeof sp.q === "string" ? sp.q.trim().slice(0, 100) : "";
-  const tipe = sp.tipe === "PRIVATE" || sp.tipe === "COC" ? sp.tipe : "";
+  const tipe = sp.tipe === "PRIVATE" || sp.tipe === "COC" || sp.tipe === "OTHER" ? sp.tipe : "";
 
   const [catalog, tutorCount, tutors] = await Promise.all([
     getCatalog({

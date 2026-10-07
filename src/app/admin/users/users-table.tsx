@@ -21,6 +21,7 @@ export type UserRow = {
   kelas?: string | null;
   domisili?: string | null;
   role: string;
+  school?: string | null;
   isActive: boolean;
   createdAt: Date;
   leads: number;
@@ -29,7 +30,7 @@ export type UserRow = {
 
 const ROLE_TONE = { ROOT: "red", SUPERADMIN: "navy", ADMIN: "brand", SMARTCHAMPION: "blue", PESERTA: "gray" } as const;
 
-function UserDialog({ user, isSelf, onClose }: { user: UserRow | null; isSelf: boolean; onClose: () => void }) {
+function UserDialog({ user, isSelf, onClose, pesertaOnly }: { user: UserRow | null; isSelf: boolean; onClose: () => void; pesertaOnly: boolean }) {
   const { formProps, pending, fieldErrors: fe } = useFormAction(saveUserAction, { onSuccess: onClose });
   const u = user;
   return (
@@ -37,8 +38,10 @@ function UserDialog({ user, isSelf, onClose }: { user: UserRow | null; isSelf: b
       open
       onClose={onClose}
       icon={u ? UserCog : UserPlus}
-      title={u ? "Edit akun" : "Tambah akun"}
-      description={u ? u.email : "Buat akun superadmin, admin pelatihan, admin SmartChampion, atau peserta."}
+      title={u ? "Edit akun" : pesertaOnly ? "Tambah akun peserta" : "Tambah akun"}
+      description={
+        u ? (pesertaOnly ? `${u.email} · ganti email ikut memperbarui Master Lead & pendaftarannya` : u.email) : pesertaOnly ? "Buat akun peserta baru." : "Buat akun superadmin, admin pelatihan, admin SmartChampion, atau peserta."
+      }
       footer={
         <>
           <button type="button" className="btn-ghost" onClick={onClose}>
@@ -61,7 +64,14 @@ function UserDialog({ user, isSelf, onClose }: { user: UserRow | null; isSelf: b
         <Field label="No. WhatsApp" htmlFor="phone">
           <input id="phone" name="phone" defaultValue={u?.phone ?? ""} className="input" />
         </Field>
+        {(pesertaOnly || u?.role === "PESERTA") && (
+          <Field label="Asal sekolah" htmlFor="school" className="sm:col-span-2">
+            <input id="school" name="school" defaultValue={u?.school ?? ""} className="input" maxLength={160} />
+          </Field>
+        )}
+        {pesertaOnly && <input type="hidden" name="role" value="PESERTA" />}
         <Field
+          className={pesertaOnly ? "hidden" : undefined}
           label="Role *"
           htmlFor="role"
           errors={fe?.role}
@@ -125,13 +135,13 @@ function ActiveToggle({ user, disabled }: { user: UserRow; disabled: boolean }) 
   );
 }
 
-export function UsersTable({ users, meId, canImpersonate }: { users: UserRow[]; meId: number; canImpersonate: boolean }) {
+export function UsersTable({ users, meId, canImpersonate, pesertaOnly = false }: { users: UserRow[]; meId: number; canImpersonate: boolean; pesertaOnly?: boolean }) {
   const [dialog, setDialog] = useState<{ open: boolean; user: UserRow | null }>({ open: false, user: null });
   return (
     <>
       <div className="mb-3 flex justify-end">
         <button className="btn-primary" onClick={() => setDialog({ open: true, user: null })}>
-          <UserPlus className="h-4 w-4" /> Tambah akun
+          <UserPlus className="h-4 w-4" /> {pesertaOnly ? "Tambah peserta" : "Tambah akun"}
         </button>
       </div>
       <div id="tabel" className="card scroll-mt-24 overflow-x-auto p-0!">
@@ -175,7 +185,7 @@ export function UsersTable({ users, meId, canImpersonate }: { users: UserRow[]; 
                 </td>
                 <td>
                   <div className="flex items-center justify-end gap-1">
-                    {canImpersonate && u.id !== meId && u.role !== "ROOT" && u.role !== "SUPERADMIN" && u.isActive && (
+                    {canImpersonate && u.id !== meId && u.role !== "ROOT" && u.role !== "SUPERADMIN" && (!pesertaOnly || u.role === "PESERTA") && u.isActive && (
                       <ConfirmButton
                         className="btn-secondary btn-sm whitespace-nowrap"
                         ariaLabel={`Masuk sebagai ${u.name}`}
@@ -210,7 +220,7 @@ export function UsersTable({ users, meId, canImpersonate }: { users: UserRow[]; 
           </tbody>
         </table>
       </div>
-      {dialog.open && <UserDialog user={dialog.user} isSelf={dialog.user?.id === meId} onClose={() => setDialog({ open: false, user: null })} />}
+      {dialog.open && <UserDialog user={dialog.user} isSelf={dialog.user?.id === meId} pesertaOnly={pesertaOnly} onClose={() => setDialog({ open: false, user: null })} />}
     </>
   );
 }

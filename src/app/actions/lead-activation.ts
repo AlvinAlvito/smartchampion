@@ -7,6 +7,7 @@ import { requirePanel } from "@/lib/session";
 import { normalizePhone } from "@/lib/utils";
 import { generateRegistrationCode } from "@/lib/payments";
 import { limitAction } from "@/lib/security";
+import { leadProductOf } from "@/lib/constants";
 import type { ActionResult } from "@/lib/action-result";
 
 /** Password awal akun yang dibuat dari Master Lead (peserta diminta menggantinya di menu Akun) */
@@ -131,7 +132,7 @@ export async function enrollLeadAction(input: { leadId: number; productId: numbe
     }),
     prisma.lead.update({
       where: { id: lead.id },
-      data: { paket: product.name, produk: lead.produk || (vip ? "VIP Privat" : "COC"), invoiceId: lead.invoiceId || code, statusBayar: "Paid" },
+      data: { paket: product.name, produk: lead.produk || leadProductOf(product.type), invoiceId: lead.invoiceId || code, statusBayar: "Paid" },
     }),
     // lengkapi jenjang akun bila masih kosong
     ...(!user.jenjang && ["SD", "SMP", "SMA"].includes(product.jenjang)

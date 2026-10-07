@@ -128,10 +128,13 @@ export const KELAS_BY_JENJANG: Record<string, string[]> = {
 export const PRODUCT_TYPE_LABEL: Record<string, string> = {
   COC: "Kelas Grup (COC)",
   PRIVATE: "VIP Privat",
+  OTHER: "Lainnya",
 };
 
 /** Nama produk di Master Lead untuk tiap jenis produk (dipakai statistik penjualan). */
-export const PRODUCT_TYPE_LEAD: Record<string, string> = { COC: "COC", PRIVATE: "VIP Privat" };
+export const PRODUCT_TYPE_LEAD: Record<string, string> = { COC: "COC", PRIVATE: "VIP Privat", OTHER: "Lainnya" };
+/** Produk di Master Lead dari jenis produk kelas */
+export const leadProductOf = (type: string | null | undefined) => PRODUCT_TYPE_LEAD[type ?? "COC"] ?? "COC";
 
 /** Nama sumber di form pendaftaran → nama sumber baku di Master Lead */
 export function registrationLeadSource(source: string) {

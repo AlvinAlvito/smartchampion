@@ -50,7 +50,9 @@ export async function buildLiveContext() {
               .map((k) => `${k.sessions}x ${formatRupiah(k.price)}`)
               .join(", ") || "tanya admin"
           } (bayar sekali per paket)`
-        : !quotaVisible(p)
+        : p.type === "OTHER"
+          ? `${p.sessionCount ?? 1}x pertemuan, sekali bayar, tanpa kuota minimal`
+          : !quotaVisible(p)
           ? // jumlah peserta disembunyikan di katalog → chatbot juga tidak menyebut angka
             `mulai setelah minimal ${p.minQuota} peserta lunas; jumlah peserta saat ini tidak dipublikasikan`
           : p.paidCount >= p.minQuota
