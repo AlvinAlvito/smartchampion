@@ -11,6 +11,7 @@ import { MimpimuCard } from "@/components/mimpimu-card";
 import { TutorAvatar } from "@/components/tutor-avatar";
 import { SessionProgress } from "@/components/session-progress";
 import { safeWaGroupUrl } from "@/lib/wa-group";
+import { visibleMaterialWhere } from "@/lib/material-access";
 import { WhatsAppIcon } from "@/components/whatsapp-icon";
 
 export const metadata = { title: "Dashboard Peserta" };
@@ -31,7 +32,7 @@ export default async function DashboardPage() {
     include: {
       product: {
         include: {
-          _count: { select: { materials: { where: { isPublished: true } } } },
+          _count: { select: { materials: { where: visibleMaterialWhere(session.userId) } } },
           tutors: { where: { isPublished: true }, select: { id: true, nama: true, foto: true }, orderBy: [{ urutan: "asc" }, { id: "asc" }] },
         },
       },

@@ -155,3 +155,25 @@ export async function removeWorksheetPdfBackground(url: string | null | undefine
   const name = url?.match(WS_PDF_BG_URL)?.[1];
   if (name) await fs.rm(path.join(WS_PDF_BG_DIR, name), { force: true });
 }
+
+/* ---------- Flyer, mading & galeri halaman kelas (publik) ---------- */
+
+export const CLASS_MEDIA_DIR = path.join(process.cwd(), "storage", "class-media");
+export const MAX_CLASS_IMAGE_BYTES = 5 * 1024 * 1024;
+const CLASS_MEDIA_URL = /^\/api\/kelas-media\/([a-f0-9-]+\.(?:jpg|png|webp))$/;
+
+export async function saveClassImage(file: File) {
+  if (file.size > MAX_CLASS_IMAGE_BYTES) throw new Error("Ukuran gambar maksimal 5 MB");
+  const buf = Buffer.from(await file.arrayBuffer());
+  const ext = imageExt(buf);
+  if (!ext) throw new Error("Gambar harus berformat JPG, PNG, atau WebP");
+  await fs.mkdir(CLASS_MEDIA_DIR, { recursive: true });
+  const name = `${crypto.randomUUID()}.${ext}`;
+  await fs.writeFile(path.join(CLASS_MEDIA_DIR, name), buf);
+  return `/api/kelas-media/${name}`;
+}
+
+export async function removeClassImage(url: string | null | undefined) {
+  const name = url?.match(CLASS_MEDIA_URL)?.[1];
+  if (name) await fs.rm(path.join(CLASS_MEDIA_DIR, name), { force: true });
+}

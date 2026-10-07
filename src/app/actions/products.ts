@@ -5,7 +5,7 @@ import type { Jenjang, MaterialType, ProductStatus, ProductType } from "@prisma/
 import { prisma } from "@/lib/prisma";
 import { requirePanel } from "@/lib/session";
 import { optInt, optStr, parseWibDate, slugify, str, safeUrl } from "@/lib/utils";
-import { removeStoredFile, removeWorksheetImage, removeWorksheetPdfBackground, savePdf } from "@/lib/storage";
+import { removeClassImage, removeStoredFile, removeWorksheetImage, removeWorksheetPdfBackground, savePdf } from "@/lib/storage";
 import { questionImageUrls } from "@/lib/rich-text";
 import type { ActionResult } from "@/lib/action-result";
 import { QUOTA_DISPLAY_VALUES } from "@/lib/quota";
@@ -109,12 +109,17 @@ async function removeProduct(id: number): Promise<"deleted" | "closed" | null> {
     where: { session: { productId: id } },
     select: { imageUrl: true, text: true, options: true, explanation: true },
   });
-  const bg = await prisma.product.findUnique({ where: { id }, select: { worksheetPdfBg: true } });
+  const bg = await prisma.product.findUnique({
+    where: { id },
+    select: { worksheetPdfBg: true, imageUrl: true, posts: { select: { imageUrl: true } }, gallery: { select: { url: true } } },
+  });
   await prisma.product.delete({ where: { id } });
   await Promise.all([
     ...materials.map((m) => removeStoredFile(m.url)),
     ...questions.flatMap((q) => questionImageUrls(q)).map((u) => removeWorksheetImage(u)),
     removeWorksheetPdfBackground(bg?.worksheetPdfBg),
+    // flyer, gambar mading & galeri
+    ...[bg?.imageUrl, ...(bg?.posts.map((p) => p.imageUrl) ?? []), ...(bg?.gallery.map((g) => g.url) ?? [])].map((u) => removeClassImage(u)),
   ]);
   return "deleted";
 }
@@ -255,6 +260,23 @@ export async function saveMaterialAction(_prev: ActionResult | undefined, form: 
   }
   if (type === "ARTICLE" && !content) return { fieldErrors: { content: ["Isi artikel wajib diisi"] } };
 
+  // VIP Privat: materi bisa dibatasi hanya untuk peserta tertentu (yang dicentang)
+  const product = await prisma.product.findUnique({ where: { id: productId }, select: { type: true } });
+  if (!product) return { error: "Kelas tidak ditemukan." };
+  const restricted = product.type === "PRIVATE" && str(form, "audience") === "SELECTED";
+  let viewerIds: number[] = [];
+  if (restricted) {
+    const picked = new Set(form.getAll("viewerIds").map((v) => Number(v)).filter((n) => Number.isInteger(n) && n > 0));
+    // hanya peserta lunas di kelas ini yang sah dicentang
+    const paid = await prisma.registration.findMany({
+      where: { productId, status: "PAID", userId: { in: [...picked] } },
+      select: { userId: true },
+      distinct: ["userId"],
+    });
+    viewerIds = paid.map((r) => r.userId).filter((u): u is number => u != null);
+    if (!viewerIds.length) return { fieldErrors: { viewerIds: ["Centang minimal 1 peserta yang boleh melihat materi ini"] } };
+  }
+
   const data = {
     productId,
     type,
@@ -263,12 +285,19 @@ export async function saveMaterialAction(_prev: ActionResult | undefined, form: 
     content,
     summary: optStr(form, "summary"),
     isPublished: form.get("isPublished") === "on",
+    restricted,
   };
-  const savedMat = existing ? await prisma.material.update({ where: { id: existing.id }, data }) : await prisma.material.create({ data: { ...data, authorId: session.userId } });
+  const savedMat = await prisma.$transaction(async (tx) => {
+    const m = existing ? await tx.material.update({ where: { id: existing.id }, data }) : await tx.material.create({ data: { ...data, authorId: session.userId } });
+    await tx.materialViewer.deleteMany({ where: { materialId: m.id } });
+    if (viewerIds.length) await tx.materialViewer.createMany({ data: viewerIds.map((userId) => ({ materialId: m.id, userId })) });
+    return m;
+  });
   await logActivity({ entity: "MATERIAL", action: existing ? "UPDATE" : "CREATE", entityId: savedMat.id, productId, label: title, detail: type === "PDF" ? "PDF" : type === "VIDEO" ? "video" : "artikel" });
 
   revalidateProduct(productId);
-  return { ok: existing ? `Materi "${title}" diperbarui.` : `Materi "${title}" ditambahkan${data.isPublished ? " dan langsung tayang" : " sebagai draft"}.` };
+  const who = restricted ? ` untuk ${viewerIds.length} peserta terpilih` : "";
+  return { ok: existing ? `Materi "${title}" diperbarui${who}.` : `Materi "${title}" ditambahkan${data.isPublished ? ` dan langsung tayang${who}` : " sebagai draft"}.` };
 }
 
 export async function deleteMaterialAction(id: number): Promise<ActionResult> {

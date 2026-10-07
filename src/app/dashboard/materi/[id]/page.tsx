@@ -4,6 +4,7 @@ import { ArrowLeft, Download, ExternalLink, FileText, Newspaper, UserRound, Vide
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { formatDate, safeUrl } from "@/lib/utils";
+import { visibleMaterialWhere } from "@/lib/material-access";
 import { SimpleMarkdown, toEmbedUrl } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +14,9 @@ const TYPE = { PDF: { icon: FileText, label: "PDF" }, VIDEO: { icon: Video, labe
 export default async function MateriPage({ params }: PageProps<"/dashboard/materi/[id]">) {
   const { id } = await params;
   const session = await requireUser(["PESERTA"]);
-  const material = await prisma.material.findUnique({
-    where: { id: Number(id) || 0 },
+  // materi khusus (VIP) hanya untuk peserta yang dicentang admin
+  const material = await prisma.material.findFirst({
+    where: { id: Number(id) || 0, ...visibleMaterialWhere(session.userId) },
     include: { product: true, author: { select: { name: true } } },
   });
   if (!material || !material.isPublished) notFound();

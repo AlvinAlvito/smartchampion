@@ -10,6 +10,7 @@ import { QuotaBar } from "@/components/ui";
 import { subjectVisual } from "@/components/product-card";
 import { ClassTutors } from "@/components/class-tutors";
 import { PackagePicker } from "./package-picker";
+import { ClassGallery, FlyerPreview, FlyerPreviewMobile, MadingSlider } from "@/components/class-showcase";
 import { quotaHype, quotaVisible } from "@/lib/quota";
 import { JsonLd } from "@/components/json-ld";
 import { NOINDEX, SITE_NAME, SITE_URL, abs, breadcrumbLd, pageMeta } from "@/lib/seo";
@@ -38,6 +39,9 @@ export default async function KelasDetailPage({ params }: PageProps<"/kelas/[slu
     include: {
       sessions: { orderBy: { startAt: "asc" }, take: 6 },
       packages: { where: { isActive: true }, orderBy: { sessions: "asc" }, select: { id: true, sessions: true, price: true, label: true } },
+      // mading & galeri opsional: bagian hanya tampil bila ada isinya
+      posts: { where: { isPublished: true }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }], select: { id: true, title: true, category: true, body: true, imageUrl: true } },
+      gallery: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }], select: { id: true, url: true, caption: true } },
     },
   });
   if (!product || product.status === "DRAFT") notFound();
@@ -102,6 +106,14 @@ export default async function KelasDetailPage({ params }: PageProps<"/kelas/[slu
         ]}
       />
       <section className="relative overflow-hidden bg-hero pb-28 pt-8 text-white">
+        {product.imageUrl && (
+          <>
+            {/* flyer sebagai latar: diburamkan + lapisan gelap agar teks tetap terbaca */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={product.imageUrl} alt="" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-sm" />
+            <div className="pointer-events-none absolute inset-0 bg-linear-to-r from-navy-950/95 via-navy-900/80 to-navy-900/45" />
+          </>
+        )}
         <div className="pointer-events-none absolute inset-0 bg-grid [mask-image:radial-gradient(ellipse_at_top,black_20%,transparent_70%)]" />
         <div className="pointer-events-none absolute -right-20 top-0 h-80 w-80 animate-blob rounded-full bg-brand-500/30 blur-3xl" />
         <div className="container-page relative animate-fade-up">
@@ -109,6 +121,7 @@ export default async function KelasDetailPage({ params }: PageProps<"/kelas/[slu
             <ArrowLeft className="h-4 w-4" /> Katalog kelas
           </Link>
           <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-center">
+            <div className="flex flex-1 flex-col gap-5 sm:flex-row sm:items-center">
             <span className={`grid h-20 w-20 shrink-0 animate-float place-items-center rounded-[28px] bg-linear-to-br ${gradient} shadow-2xl ring-4 ring-white/10`}>
               <Icon className="h-10 w-10" />
             </span>
@@ -121,13 +134,16 @@ export default async function KelasDetailPage({ params }: PageProps<"/kelas/[slu
               </div>
               <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{product.name}</h1>
               <p className="mt-2 max-w-2xl text-navy-200">{product.shortDesc}</p>
+              {product.imageUrl && <FlyerPreviewMobile url={product.imageUrl} name={product.name} />}
             </div>
+            </div>
+            {product.imageUrl && <FlyerPreview url={product.imageUrl} name={product.name} />}
           </div>
         </div>
       </section>
 
       <div className="container-page relative z-10 -mt-16 grid gap-6 pb-10 lg:grid-cols-3">
-        <div className="stagger space-y-6 lg:col-span-2">
+        <div className="stagger min-w-0 space-y-6 lg:col-span-2">
           <div className="card">
             <h2 className="mb-3 text-lg font-bold text-navy-900">Tentang kelas</h2>
             <p className="leading-relaxed text-navy-600">{intro}</p>
@@ -145,6 +161,8 @@ export default async function KelasDetailPage({ params }: PageProps<"/kelas/[slu
               </ul>
             )}
           </div>
+
+          {product.posts.length > 0 && <MadingSlider posts={product.posts} />}
 
           <ClassTutors productId={product.id} />
 
@@ -178,6 +196,8 @@ export default async function KelasDetailPage({ params }: PageProps<"/kelas/[slu
               </p>
             )}
           </div>
+
+          {product.gallery.length > 0 && <ClassGallery images={product.gallery} />}
         </div>
 
         <aside className="h-fit animate-fade-up lg:sticky lg:top-24">

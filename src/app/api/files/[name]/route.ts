@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession, isPanel } from "@/lib/session";
 import { STORAGE_DIR } from "@/lib/storage";
 import { guardRoute, ipFrom } from "@/lib/security";
+import { visibleMaterialWhere } from "@/lib/material-access";
 import { blockReadOnlyDownload } from "@/lib/read-only";
 
 export async function GET(request: Request, ctx: RouteContext<"/api/files/[name]">) {
@@ -21,7 +22,8 @@ export async function GET(request: Request, ctx: RouteContext<"/api/files/[name]
 
   if (!isPanel(session.role)) {
     // Peserta hanya boleh membuka file materi dari kelas yang sudah lunas
-    const material = await prisma.material.findFirst({ where: { url: `/api/files/${name}`, isPublished: true }, select: { productId: true } });
+    // …dan, untuk materi khusus (VIP), hanya peserta yang dicentang admin
+    const material = await prisma.material.findFirst({ where: { url: `/api/files/${name}`, ...visibleMaterialWhere(session.userId) }, select: { productId: true } });
     const allowed = material && (await prisma.registration.count({ where: { userId: session.userId, productId: material.productId, status: "PAID" } }));
     if (!allowed) return new NextResponse("Forbidden", { status: 403 });
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Link2, Newspaper, Pencil, Plus, Save, Trash2, Upload, Video } from "lucide-react";
+import { FileText, Link2, Lock, Newspaper, Pencil, Plus, Save, Trash2, Upload, Video } from "lucide-react";
 import { deleteMaterialAction, deleteProductAction, saveMaterialAction } from "@/app/actions/products";
 import { cn, formatDate } from "@/lib/utils";
 import { ConfirmButton, Modal } from "@/components/modal";
@@ -20,7 +20,12 @@ export type MaterialRow = {
   isPublished: boolean;
   createdAt: Date;
   author: { name: string } | null;
+  restricted: boolean;
+  viewerIds: number[];
 };
+
+/** Peserta lunas kelas VIP yang bisa dipilih sebagai penerima materi */
+export type MaterialAudience = { userId: number; name: string; school: string };
 
 const TYPES = [
   { v: "ARTICLE", l: "Artikel", icon: Newspaper, grad: "from-brand-400 to-brand-700" },
@@ -28,7 +33,119 @@ const TYPES = [
   { v: "VIDEO", l: "Video", icon: Video, grad: "from-sky-400 to-navy-600" },
 ] as const;
 
-function MaterialDialog({ productId, material, onClose }: { productId: number; material: MaterialRow | null; onClose: () => void }) {
+function AudiencePicker({ participants, material, errors }: { participants: MaterialAudience[]; material: MaterialRow | null; errors?: string[] }) {
+  const [mode, setMode] = useState<"ALL" | "SELECTED">(material?.restricted ? "SELECTED" : "ALL");
+  const [picked, setPicked] = useState<Set<number>>(() => new Set(material?.viewerIds ?? []));
+  const [q, setQ] = useState("");
+  const shown = participants.filter((p) => !q || `${p.name} ${p.school}`.toLowerCase().includes(q.toLowerCase()));
+  const toggle = (id: number) =>
+    setPicked((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const allShown = shown.length > 0 && shown.every((p) => picked.has(p.userId));
+  return (
+    <div className="space-y-3 rounded-3xl bg-amber-50/60 p-4 ring-1 ring-amber-100">
+      <div>
+        <span className="label flex items-center gap-1.5">
+          <Lock className="h-3.5 w-3.5 text-amber-600" /> Siapa yang bisa melihat materi ini?
+        </span>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {[
+            { v: "ALL" as const, l: "Semua peserta kelas", d: "Seluruh peserta VIP yang lunas di kelas ini" },
+            { v: "SELECTED" as const, l: "Peserta tertentu", d: "Hanya peserta yang dicentang di bawah" },
+          ].map((o) => (
+            <label
+              key={o.v}
+              className={cn(
+                "cursor-pointer rounded-2xl border-2 bg-white px-3 py-2.5 transition",
+                mode === o.v ? "border-amber-400 shadow-sm" : "border-navy-100 hover:border-amber-200",
+              )}
+            >
+              <input type="radio" name="audience" value={o.v} checked={mode === o.v} onChange={() => setMode(o.v)} className="sr-only" />
+              <span className="block text-sm font-semibold text-navy-800">{o.l}</span>
+              <span className="text-xs text-navy-400">{o.d}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      {mode === "SELECTED" && (
+        <div>
+          {participants.length ? (
+            <>
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nama / sekolah" className="input h-9 flex-1 py-1.5 text-sm" aria-label="Cari peserta" />
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm"
+                  onClick={() =>
+                    setPicked((s) => {
+                      const n = new Set(s);
+                      for (const p of shown) {
+                        if (allShown) n.delete(p.userId);
+                        else n.add(p.userId);
+                      }
+                      return n;
+                    })
+                  }
+                >
+                  {allShown ? "Hapus centang" : "Centang semua"}
+                </button>
+                <span className="text-xs font-semibold text-amber-800">
+                  {picked.size}/{participants.length} dipilih
+                </span>
+              </div>
+              <ul className="max-h-60 space-y-1 overflow-y-auto rounded-2xl bg-white p-2 ring-1 ring-navy-100">
+                {shown.map((p) => (
+                  <li key={p.userId}>
+                    <label className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-amber-50">
+                      <input
+                        type="checkbox"
+                        name="viewerIds"
+                        value={p.userId}
+                        checked={picked.has(p.userId)}
+                        onChange={() => toggle(p.userId)}
+                        className="h-4 w-4 accent-amber-500"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-navy-800">{p.name}</span>
+                        {p.school && <span className="block truncate text-xs text-navy-400">{p.school}</span>}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+                {!shown.length && <li className="p-3 text-center text-xs text-navy-400">Tidak ada peserta yang cocok.</li>}
+              </ul>
+              {/* peserta tercentang yang sedang tersaring pencarian tetap ikut terkirim */}
+              {[...picked]
+                .filter((id) => !shown.some((p) => p.userId === id))
+                .map((id) => (
+                  <input key={id} type="hidden" name="viewerIds" value={id} />
+                ))}
+            </>
+          ) : (
+            <p className="rounded-2xl bg-white p-3 text-center text-xs text-navy-400 ring-1 ring-navy-100">Belum ada peserta lunas di kelas ini.</p>
+          )}
+          {errors && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors[0]}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MaterialDialog({
+  productId,
+  material,
+  participants,
+  onClose,
+}: {
+  productId: number;
+  material: MaterialRow | null;
+  participants?: MaterialAudience[];
+  onClose: () => void;
+}) {
   const { formProps, pending, fieldErrors: fe } = useFormAction(saveMaterialAction, { onSuccess: onClose });
   const [type, setType] = useState<MaterialRow["type"]>(material?.type ?? "ARTICLE");
   const [fileName, setFileName] = useState("");
@@ -42,7 +159,7 @@ function MaterialDialog({ productId, material, onClose }: { productId: number; m
       size="lg"
       icon={FileText}
       title={m ? "Edit materi" : "Tambah materi"}
-      description="Materi tayang hanya untuk peserta yang sudah lunas di kelas ini."
+      description={participants ? "Materi tayang untuk peserta lunas di kelas ini — atau hanya peserta tertentu yang kamu centang." : "Materi tayang hanya untuk peserta yang sudah lunas di kelas ini."}
       footer={
         <>
           <button type="button" className="btn-ghost" onClick={onClose}>
@@ -135,6 +252,8 @@ function MaterialDialog({ productId, material, onClose }: { productId: number; m
           <textarea id="content" name="content" rows={type === "ARTICLE" ? 12 : 4} defaultValue={m?.content ?? ""} className="input font-mono text-[13px]" />
         </Field>
 
+        {participants && <AudiencePicker participants={participants} material={m} errors={fe?.viewerIds} />}
+
         <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl bg-navy-50/60 px-4 py-3">
           <span>
             <span className="block text-sm font-semibold text-navy-800">Tayangkan ke peserta</span>
@@ -147,7 +266,8 @@ function MaterialDialog({ productId, material, onClose }: { productId: number; m
   );
 }
 
-export function MaterialsPanel({ productId, materials }: { productId: number; materials: MaterialRow[] }) {
+export function MaterialsPanel({ productId, materials, participants }: { productId: number; materials: MaterialRow[]; participants?: MaterialAudience[] }) {
+  const nameOf = (id: number) => participants?.find((p) => p.userId === id)?.name;
   const [dialog, setDialog] = useState<{ open: boolean; material: MaterialRow | null }>({ open: false, material: null });
   return (
     <section id="materi" className="card scroll-mt-4">
@@ -171,7 +291,20 @@ export function MaterialsPanel({ productId, materials }: { productId: number; ma
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <Badge tone={m.isPublished ? "green" : "gray"}>{m.isPublished ? "Tayang" : "Draft"}</Badge>
+                    {m.restricted && (
+                      <span title={m.viewerIds.map((id) => nameOf(id) ?? `#${id}`).join(", ")}>
+                        <Badge tone="yellow">
+                          <Lock className="mr-1 inline h-3 w-3" />
+                          {m.viewerIds.length} peserta
+                        </Badge>
+                      </span>
+                    )}
                   </div>
+                  {m.restricted && participants && (
+                    <p className="mt-0.5 truncate text-[11px] text-amber-700">
+                      Untuk: {m.viewerIds.map((id) => nameOf(id) ?? "peserta lain").join(", ")}
+                    </p>
+                  )}
                   <p className="mt-1 truncate font-semibold text-navy-800">{m.title}</p>
                   <p className="text-xs text-navy-400">
                     {t.l} · {formatDate(m.createdAt)}
@@ -199,7 +332,9 @@ export function MaterialsPanel({ productId, materials }: { productId: number; ma
       ) : (
         <EmptyState icon={FileText} title="Belum ada materi" desc="Tambahkan artikel, PDF, atau video untuk peserta kelas ini." />
       )}
-      {dialog.open && <MaterialDialog productId={productId} material={dialog.material} onClose={() => setDialog({ open: false, material: null })} />}
+      {dialog.open && (
+        <MaterialDialog productId={productId} material={dialog.material} participants={participants} onClose={() => setDialog({ open: false, material: null })} />
+      )}
     </section>
   );
 }

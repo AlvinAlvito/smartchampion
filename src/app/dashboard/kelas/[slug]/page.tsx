@@ -29,6 +29,7 @@ import { subjectVisual } from "@/components/product-card";
 import { ClassTutors } from "@/components/class-tutors";
 import { SessionProgress } from "@/components/session-progress";
 import { safeWaGroupUrl } from "@/lib/wa-group";
+import { visibleMaterialWhere } from "@/lib/material-access";
 import { WhatsAppIcon } from "@/components/whatsapp-icon";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,7 @@ export default async function KelasSayaPage({ params }: PageProps<"/dashboard/ke
     where: { slug },
     include: {
       sessions: { orderBy: [{ startAt: "asc" }, { id: "asc" }], include: { _count: { select: { worksheetQuestions: true } } } },
-      materials: { where: { isPublished: true }, orderBy: { createdAt: "desc" } },
+      materials: { where: visibleMaterialWhere(session.userId), orderBy: { createdAt: "desc" } },
     },
   });
   if (!product) notFound();

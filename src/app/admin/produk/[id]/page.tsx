@@ -9,6 +9,7 @@ import { Badge, QuotaBar, statusTone } from "@/components/ui";
 import { subjectVisual } from "@/components/product-card";
 import { ProductDialogButton } from "../product-form";
 import { DeleteProductButton, MaterialsPanel } from "./panels";
+import { ShowcasePanel } from "./showcase-panels";
 import { MeetingsPanel } from "./meetings-panel";
 import { PackagesPanel } from "./packages-panel";
 import { safeWaGroupUrl } from "@/lib/wa-group";
@@ -55,6 +56,13 @@ function LoginLine({ info }: { info?: LoginInfo }) {
 }
 
 export const metadata = { title: "Kelola Kelas" };
+
+/** Peserta lunas unik (VIP bisa beli paket berkali-kali) untuk pilihan "siapa yang boleh melihat materi" */
+function audienceOf(regs: { userId: number | null; fullName: string; school: string | null }[]) {
+  const seen = new Map<number, { userId: number; name: string; school: string }>();
+  for (const r of regs) if (r.userId && !seen.has(r.userId)) seen.set(r.userId, { userId: r.userId, name: r.fullName, school: r.school ?? "" });
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name, "id"));
+}
 export const dynamic = "force-dynamic";
 
 export default async function ProductDetailPage({ params }: PageProps<"/admin/produk/[id]">) {
@@ -67,18 +75,20 @@ export default async function ProductDetailPage({ params }: PageProps<"/admin/pr
         orderBy: { startAt: "asc" },
         include: { _count: { select: { worksheetQuestions: true, worksheetAttempts: true, attendances: { where: { status: "HADIR" } } } } },
       },
-      materials: { orderBy: { createdAt: "desc" }, include: { author: { select: { name: true } } } },
+      materials: { orderBy: { createdAt: "desc" }, include: { author: { select: { name: true } }, viewers: { select: { userId: true } } } },
       registrations: {
         where: { status: "PAID" },
         select: { id: true, userId: true, fullName: true, school: true, phone: true, paidAt: true, sessionsBought: true, sessionsDone: true },
         orderBy: { paidAt: "desc" },
       },
       packages: { orderBy: { sessions: "asc" }, include: { _count: { select: { registrations: { where: { status: "PAID" } } } } } },
+      posts: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }], select: { id: true, title: true, category: true, body: true, imageUrl: true, isPublished: true } },
+      gallery: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }], select: { id: true, url: true, caption: true } },
     },
   });
   if (!product) notFound();
   const { icon: Icon, gradient } = subjectVisual(product.bidang);
-  const { sessions, materials, registrations, packages, ...values } = product;
+  const { sessions, materials, registrations, packages, posts, gallery, ...values } = product;
   const vip = product.type === "PRIVATE";
   const logins = await loginInfo(registrations.map((r) => r.userId));
   const loggedIn = registrations.filter((r) => r.userId && hasLoggedIn(logins.get(r.userId))).length;
@@ -176,7 +186,12 @@ export default async function ProductDetailPage({ params }: PageProps<"/admin/pr
               present: _count.attendances,
             }))}
           />
-          <MaterialsPanel productId={product.id} materials={materials} />
+          <MaterialsPanel
+            productId={product.id}
+            materials={materials.map(({ viewers, ...m }) => ({ ...m, viewerIds: viewers.map((v) => v.userId) }))}
+            participants={vip ? audienceOf(registrations) : undefined}
+          />
+          <ShowcasePanel productId={product.id} slug={product.slug} imageUrl={product.imageUrl} posts={posts} gallery={gallery} />
         </div>
         <aside className="card h-fit space-y-4">
           <p className="flex items-center gap-2 font-bold text-navy-900">

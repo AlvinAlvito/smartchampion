@@ -3,31 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import {
-  Receipt,
-  BookOpen,
-  Bot,
-  BriefcaseBusiness,
-  MessagesSquare,
-  Megaphone,
-  ClipboardList,
-  Contact,
-  Gamepad2,
-  Globe,
-  GraduationCap,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  MessageSquareHeart,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Presentation,
-  Send,
-  Trophy,
-  Users,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { BookOpen, Bot, BriefcaseBusiness, ClipboardList, Contact, DatabaseBackup, Gamepad2, Globe, GraduationCap, LayoutDashboard, LogOut, Megaphone, Menu, MessageSquareHeart, MessagesSquare, PanelLeftClose, PanelLeftOpen, Presentation, Receipt, Send, Trophy, Users, X, type LucideIcon } from "lucide-react";
 import { logoutAction } from "@/app/actions/auth";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
@@ -188,7 +164,11 @@ export function AdminShell({ user, children, initialCollapsed = false }: { user:
   const pathname = usePathname();
   const items =
     user.role === "ROOT" || user.role === "SUPERADMIN"
-      ? [...ITEMS.map((it) => (it.superLabel ? { ...it, label: it.superLabel } : it)), { href: "/admin/users", label: "Pengguna", icon: Users }]
+      ? [
+          ...ITEMS.map((it) => (it.superLabel ? { ...it, label: it.superLabel } : it)),
+          { href: "/admin/users", label: "Pengguna", icon: Users },
+          ...(user.role === "ROOT" ? [{ href: "/admin/backup", label: "Backup Spreadsheet", icon: DatabaseBackup }] : []),
+        ]
       : user.role === "SMARTCHAMPION"
         ? [
             ...ITEMS.filter((it) => !it.sales || ["/admin/leads", "/admin/jobdesk", "/admin/performa", "/admin/transaksi"].includes(it.href)).map((it) =>

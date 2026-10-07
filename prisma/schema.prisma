@@ -87,6 +87,7 @@ model User {
   blasts               Blast[]
   scores               GameScore[]
   materials            Material[]
+  materialViews        MaterialViewer[]
   /// Nomor WhatsApp yang ditautkan admin untuk menu Chat WA (satu nomor per admin)
   waAccount            WaAccount?
   waMessagesSent       WaMessage[]
@@ -138,6 +139,7 @@ model Product {
   scheduleInfo       String?       @db.VarChar(255)
   startDate          DateTime?
   status             ProductStatus @default(OPEN)
+  /// Flyer / gambar latar halaman kelas publik (storage/class-media, publik); kosong = latar biasa
   imageUrl           String?       @db.VarChar(255)
   /// Link undangan grup WhatsApp kelas — hanya ditampilkan ke peserta yang sudah lunas
   waGroupUrl         String?       @db.VarChar(500)
@@ -151,13 +153,50 @@ model Product {
   sessions      ClassSession[]
   materials     Material[]
   /// Tutor yang mengajar kelas ini (banyak-ke-banyak)
-  tutors        Tutor[]          @relation("TutorClasses")
+  tutors        Tutor[]             @relation("TutorClasses")
   /// Paket pertemuan (khusus VIP Privat), mis. 1x, 4x, 8x
   packages      ProductPackage[]
   results       ClassResult[]
   feedbacks     Feedback[]
+  /// Mading (kartu slider) & galeri foto di halaman kelas publik — opsional
+  posts         ClassPost[]
+  gallery       ClassGalleryImage[]
 
   @@map("products")
+}
+
+/// Mading kelas: kartu info (gambar, judul, kategori, teks) yang tampil sebagai slider di /kelas/[slug]
+model ClassPost {
+  id          Int      @id @default(autoincrement())
+  productId   Int
+  title       String   @db.VarChar(160)
+  category    String?  @db.VarChar(60)
+  body        String   @db.Text
+  imageUrl    String?  @db.VarChar(255)
+  isPublished Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, sortOrder])
+  @@map("class_posts")
+}
+
+/// Galeri foto kelas di /kelas/[slug]
+model ClassGalleryImage {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  url       String   @db.VarChar(255)
+  caption   String?  @db.VarChar(160)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, sortOrder])
+  @@map("class_gallery")
 }
 
 model Registration {
@@ -317,14 +356,31 @@ model Material {
   content     String?      @db.LongText
   summary     String?      @db.VarChar(255)
   isPublished Boolean      @default(true)
+  /// true = hanya peserta di material_viewers yang boleh melihat (dipakai kelas VIP Privat)
+  restricted  Boolean      @default(false)
   authorId    Int?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  author  User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  product Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  author  User?            @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  viewers MaterialViewer[]
 
   @@map("materials")
+}
+
+/// Peserta yang boleh melihat materi ber-restricted
+model MaterialViewer {
+  materialId Int
+  userId     Int
+  createdAt  DateTime @default(now())
+
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([materialId, userId])
+  @@index([userId])
+  @@map("material_viewers")
 }
 
 /// Data Master Lead (sama dengan kolom di Data Master Lead.xlsx)

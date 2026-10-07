@@ -3,7 +3,7 @@ import { BookOpen, CalendarDays, CalendarRange, ChevronRight, FileText, Filter, 
 import { prisma } from "@/lib/prisma";
 import { requirePanel } from "@/lib/session";
 import { paidCountByProduct } from "@/lib/queries";
-import { JENJANG_LABEL, PRODUCT_STATUS_LABEL } from "@/lib/constants";
+import { JENJANG_LABEL, PRODUCT_STATUS_LABEL, PRODUCT_TYPE_LABEL } from "@/lib/constants";
 import { formatRupiah } from "@/lib/utils";
 import { Badge, EmptyState, PageTitle, statusTone } from "@/components/ui";
 import { subjectVisual } from "@/components/product-card";
@@ -36,6 +36,13 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
       take,
     }),
   ]);
+  // jumlah kelas per jenis (mengikuti pencarian & jenjang, bukan tab jenis)
+  const typeCounts = await prisma.product.groupBy({ by: ["type"], where: productWhere({ ...filters, tipe: "" }), _count: { _all: true } });
+  const countOf = (t: string) => (t ? (typeCounts.find((x) => x.type === t)?._count._all ?? 0) : typeCounts.reduce((a, x) => a + x._count._all, 0));
+  const tabHref = (t: string) => {
+    const qs = new URLSearchParams(Object.entries({ ...filters, tipe: t }).filter(([, v]) => v) as [string, string][]).toString();
+    return qs ? `/admin/produk?${qs}` : "/admin/produk";
+  };
   const [paid, spans] = await Promise.all([
     paidCountByProduct(products.map((p) => p.id)),
     // periode pelaksanaan: pertemuan pertama → pertemuan terakhir
@@ -49,10 +56,34 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
         icon={BookOpen}
         eyebrow="Katalog"
         title="Produk & Materi"
-        subtitle="Kelola kelas COC, jadwal pertemuan, dan materi (PDF, video, artikel)."
+        subtitle="Kelola kelas COC, VIP Privat & produk lainnya, jadwal pertemuan, dan materi (PDF, video, artikel)."
         action={<ProductDialogButton product={null} />}
       />
+      <nav className="mb-3 flex flex-wrap gap-2" aria-label="Filter jenis produk">
+        {[
+          { v: "", l: "Semua" },
+          { v: "COC", l: PRODUCT_TYPE_LABEL.COC },
+          { v: "PRIVATE", l: PRODUCT_TYPE_LABEL.PRIVATE },
+          { v: "OTHER", l: PRODUCT_TYPE_LABEL.OTHER },
+        ].map((t) => {
+          const active = filters.tipe === t.v;
+          return (
+            <Link
+              key={t.v || "all"}
+              href={tabHref(t.v)}
+              aria-current={active ? "page" : undefined}
+              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                active ? "bg-navy-900 text-white shadow-md" : "bg-white text-navy-600 ring-1 ring-navy-100 hover:bg-brand-50 hover:text-brand-700"
+              }`}
+            >
+              {t.l}
+              <span className={`rounded-full px-2 py-0.5 text-[11px] ${active ? "bg-white/20" : "bg-navy-50 text-navy-500"}`}>{countOf(t.v)}</span>
+            </Link>
+          );
+        })}
+      </nav>
       <form className="card mb-4 grid gap-3 sm:grid-cols-[1fr_180px_auto]" action="/admin/produk">
+        {filters.tipe && <input type="hidden" name="tipe" value={filters.tipe} />}
         <div className="relative">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-navy-300" />
           <input name="q" defaultValue={filters.q} placeholder="Cari nama kelas / bidang" className="input pl-10" aria-label="Cari kelas" />
@@ -78,7 +109,7 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
         <EmptyState
           icon={BookOpen}
           title={query ? "Tidak ada kelas yang cocok" : "Belum ada kelas"}
-          desc={query ? "Coba kata kunci atau jenjang lain." : "Tambahkan kelas pertama lewat tombol Tambah kelas."}
+          desc={query ? "Coba kata kunci, jenjang, atau jenis produk lain." : "Tambahkan kelas pertama lewat tombol Tambah kelas."}
         />
       )}
       <SelectableGrid
