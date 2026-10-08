@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { after } from "next/server";
-import { ArrowLeft, ArrowRight, CircleCheck, LifeBuoy, ListOrdered, MessageCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, CircleCheck, LifeBuoy, ListOrdered, MessageCircle, Network } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { SimpleMarkdown } from "@/lib/content";
 import { videoInfo } from "@/lib/video";
 import { NOINDEX, pageMeta } from "@/lib/seo";
 import { formatDate } from "@/lib/utils";
-import { GuideVideo } from "@/components/guide-video";
+import { GuideVideos } from "@/components/guide-video";
 import { ZoomImage } from "@/components/class-showcase";
 
 export const dynamic = "force-dynamic";
@@ -82,9 +82,21 @@ export default async function PanduanDetailPage({ params }: PageProps<"/panduan/
 
       <div className="container-page relative z-10 -mt-14 grid gap-6 pb-14 lg:grid-cols-[1fr_300px]">
         <div className="min-w-0 space-y-6">
-          {vi && (
+          {(vi || guide.videoFileUrl || guide.videoFileMobileUrl) && (
             <div className="card">
-              <GuideVideo video={vi} title={guide.title} />
+              <GuideVideos laptop={guide.videoFileUrl} hp={guide.videoFileMobileUrl} video={vi} title={guide.title} />
+            </div>
+          )}
+
+          {guide.infographicUrl && (
+            <div className="card">
+              <h2 className="mb-3 flex items-center gap-2 text-lg font-bold text-navy-900">
+                <Network className="h-5 w-5 text-brand-600" /> Ringkasan alur
+              </h2>
+              <ZoomImage src={guide.infographicUrl} alt={`Infografis: ${guide.title}`} className="rounded-2xl bg-navy-50 ring-1 ring-navy-100" />
+              <a href={guide.infographicUrl} download className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline">
+                Unduh gambar
+              </a>
             </div>
           )}
 

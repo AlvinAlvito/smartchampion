@@ -37,7 +37,7 @@ export default async function AdminGuidesPage() {
         <div className="space-y-3">
           {guides.map((g, i) => {
             const vi = videoInfo(g.videoUrl);
-            const thumb = g.coverUrl ?? vi?.thumb ?? g.steps[0]?.imageUrl;
+            const thumb = g.coverUrl ?? g.infographicUrl ?? vi?.thumb ?? g.steps[0]?.imageUrl;
             return (
               <div key={g.id} className="card flex flex-col gap-4 sm:flex-row sm:items-center">
                 <Link href={`/admin/panduan/${g.id}`} className="relative aspect-video w-full shrink-0 overflow-hidden rounded-2xl bg-linear-to-br from-brand-500 to-navy-800 sm:w-44">
@@ -73,6 +73,12 @@ export default async function AdminGuidesPage() {
                         <PlayCircle className="h-3.5 w-3.5" /> video {vi.kind === "youtube" ? "YouTube" : "Drive"}
                       </span>
                     )}
+                    {(g.videoFileUrl || g.videoFileMobileUrl) && (
+                      <span className="inline-flex items-center gap-1">
+                        <PlayCircle className="h-3.5 w-3.5" /> video {[g.videoFileUrl && "laptop", g.videoFileMobileUrl && "HP"].filter(Boolean).join(" + ")}
+                      </span>
+                    )}
+                    {g.infographicUrl && <span>infografis ✓</span>}
                     <span className="inline-flex items-center gap-1">
                       <Eye className="h-3.5 w-3.5" /> {g.viewCount}x dilihat
                     </span>

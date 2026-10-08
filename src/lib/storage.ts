@@ -160,7 +160,8 @@ export async function removeWorksheetPdfBackground(url: string | null | undefine
 
 export const CLASS_MEDIA_DIR = path.join(process.cwd(), "storage", "class-media");
 export const MAX_CLASS_IMAGE_BYTES = 5 * 1024 * 1024;
-const CLASS_MEDIA_URL = /^\/api\/kelas-media\/([a-f0-9-]+\.(?:jpg|png|webp))$/;
+const CLASS_MEDIA_URL = /^\/api\/kelas-media\/([a-f0-9-]+\.(?:jpg|png|webp|mp4))$/;
+export const MAX_CLASS_VIDEO_BYTES = 30 * 1024 * 1024;
 
 export async function saveClassImage(file: File) {
   if (file.size > MAX_CLASS_IMAGE_BYTES) throw new Error("Ukuran gambar maksimal 5 MB");
@@ -173,6 +174,18 @@ export async function saveClassImage(file: File) {
   return `/api/kelas-media/${name}`;
 }
 
+/** Video tutorial MP4 (Panduan). Dicek dari isi file: kotak "ftyp" di awal = MP4/MOV. */
+export async function saveClassVideo(file: File) {
+  if (file.size > MAX_CLASS_VIDEO_BYTES) throw new Error("Ukuran video maksimal 30 MB");
+  const buf = Buffer.from(await file.arrayBuffer());
+  if (buf.subarray(4, 8).toString() !== "ftyp") throw new Error("Video harus berformat MP4");
+  await fs.mkdir(CLASS_MEDIA_DIR, { recursive: true });
+  const name = `${crypto.randomUUID()}.mp4`;
+  await fs.writeFile(path.join(CLASS_MEDIA_DIR, name), buf);
+  return `/api/kelas-media/${name}`;
+}
+
+/** Hapus file media kelas/panduan (gambar atau video) */
 export async function removeClassImage(url: string | null | undefined) {
   const name = url?.match(CLASS_MEDIA_URL)?.[1];
   if (name) await fs.rm(path.join(CLASS_MEDIA_DIR, name), { force: true });

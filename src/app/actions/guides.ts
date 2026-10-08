@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requirePanel } from "@/lib/session";
 import { optInt, optStr, slugify, str } from "@/lib/utils";
-import { removeClassImage, saveClassImage } from "@/lib/storage";
+import { removeClassImage, saveClassImage, saveClassVideo } from "@/lib/storage";
 import type { ActionResult } from "@/lib/action-result";
 import { logActivity } from "@/lib/activity";
 import { videoInfo } from "@/lib/video";
@@ -51,19 +51,31 @@ export async function saveGuideAction(_prev: ActionResult | undefined, form: For
   const clash = await prisma.guide.findFirst({ where: { slug, ...(existing ? { NOT: { id: existing.id } } : {}) }, select: { id: true } });
   if (clash) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
 
-  // unggah gambar (sampul & langkah) — gagal satu → batalkan & hapus yang sudah terunggah
+  // unggah gambar & video (sampul, infografis, video, langkah) — gagal satu → batalkan & hapus yang sudah terunggah
   const uploaded: string[] = [];
-  const upload = async (f: File) => {
-    const url = await saveClassImage(f);
+  const upload = async (f: File, kind: "image" | "video" = "image") => {
+    const url = kind === "video" ? await saveClassVideo(f) : await saveClassImage(f);
     uploaded.push(url);
     return url;
   };
   let coverUrl = existing?.coverUrl ?? null;
+  let infographicUrl = existing?.infographicUrl ?? null;
+  let videoFileUrl = existing?.videoFileUrl ?? null;
+  let videoFileMobileUrl = existing?.videoFileMobileUrl ?? null;
   const stepRows: { title: string; body: string; imageUrl: string | null }[] = [];
   try {
     const cover = fileOf(form, "cover");
     if (cover) coverUrl = await upload(cover);
     else if (form.get("removeCover") === "1") coverUrl = null;
+    const info = fileOf(form, "infographic");
+    if (info) infographicUrl = await upload(info);
+    else if (form.get("removeInfographic") === "1") infographicUrl = null;
+    const vid = fileOf(form, "videoFile");
+    if (vid) videoFileUrl = await upload(vid, "video");
+    else if (form.get("removeVideoFile") === "1") videoFileUrl = null;
+    const vidM = fileOf(form, "videoFileMobile");
+    if (vidM) videoFileMobileUrl = await upload(vidM, "video");
+    else if (form.get("removeVideoFileMobile") === "1") videoFileMobileUrl = null;
     const ownUrls = new Set((existing?.steps ?? []).map((s) => s.imageUrl).filter(Boolean));
     for (const s of steps) {
       const f = fileOf(form, `stepImage_${s.key}`);
@@ -82,6 +94,9 @@ export async function saveGuideAction(_prev: ActionResult | undefined, form: For
     summary: optStr(form, "summary")?.slice(0, 255) ?? null,
     category: (optStr(form, "category") ?? "Umum").slice(0, 60),
     coverUrl,
+    infographicUrl,
+    videoFileUrl,
+    videoFileMobileUrl,
     videoUrl,
     content: optStr(form, "content"),
     isPublished: form.get("isPublished") === "on",
@@ -98,8 +113,10 @@ export async function saveGuideAction(_prev: ActionResult | undefined, form: For
 
   // bersihkan gambar lama yang tidak dipakai lagi
   if (existing) {
-    const used = new Set([coverUrl, ...stepRows.map((s) => s.imageUrl)].filter(Boolean));
-    const stale = [existing.coverUrl, ...existing.steps.map((s) => s.imageUrl)].filter((u): u is string => !!u && !used.has(u));
+    const used = new Set([coverUrl, infographicUrl, videoFileUrl, videoFileMobileUrl, ...stepRows.map((s) => s.imageUrl)].filter(Boolean));
+    const stale = [existing.coverUrl, existing.infographicUrl, existing.videoFileUrl, existing.videoFileMobileUrl, ...existing.steps.map((s) => s.imageUrl)].filter(
+      (u): u is string => !!u && !used.has(u),
+    );
     await Promise.all(stale.map((u) => removeClassImage(u)));
   }
 
@@ -116,7 +133,7 @@ export async function deleteGuideAction(id: number): Promise<ActionResult> {
   const g = await prisma.guide.findUnique({ where: { id }, include: { steps: { select: { imageUrl: true } } } });
   if (!g) return { error: "Panduan tidak ditemukan." };
   await prisma.guide.delete({ where: { id } });
-  await Promise.all([g.coverUrl, ...g.steps.map((s) => s.imageUrl)].map((u) => removeClassImage(u)));
+  await Promise.all([g.coverUrl, g.infographicUrl, g.videoFileUrl, g.videoFileMobileUrl, ...g.steps.map((s) => s.imageUrl)].map((u) => removeClassImage(u)));
   await logActivity({ entity: "GUIDE", action: "DELETE", entityId: id, label: g.title });
   revalidateGuides(g.slug);
   return { ok: `Panduan "${g.title}" dihapus.`, redirectTo: "/admin/panduan" };

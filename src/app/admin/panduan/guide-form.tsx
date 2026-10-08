@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink, ImagePlus, ListOrdered, Plus, Save, Trash2, Upload, Video } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink, Film, ImagePlus, ListOrdered, Monitor, Network, Plus, Save, Smartphone, Trash2, Upload, Video } from "lucide-react";
 import { saveGuideAction } from "@/app/actions/guides";
 import { SubmitButton, useFormAction } from "@/components/form-buttons";
 import { Field } from "@/components/ui";
@@ -17,6 +17,9 @@ export type GuideValues = {
   category: string;
   coverUrl: string | null;
   videoUrl: string | null;
+  videoFileUrl?: string | null;
+  videoFileMobileUrl?: string | null;
+  infographicUrl?: string | null;
   content: string | null;
   isPublished: boolean;
   isFeatured: boolean;
@@ -27,6 +30,65 @@ type StepState = { key: string; title: string; body: string; imageUrl: string | 
 
 let seq = 0;
 const newKey = () => `s${Date.now().toString(36)}${(seq++).toString(36)}`;
+
+/** Pemilih file media (video MP4 / gambar) dengan pratinjau & hapus — dipakai video laptop, video HP, infografis */
+function MediaPicker({
+  name,
+  removeName,
+  label,
+  hint,
+  current,
+  kind,
+  icon: Icon,
+}: {
+  name: string;
+  removeName: string;
+  label: string;
+  hint: string;
+  current: string | null | undefined;
+  kind: "video" | "image";
+  icon: typeof Film;
+}) {
+  const [preview, setPreview] = useState<string | null>(null);
+  const [removed, setRemoved] = useState(false);
+  const shown = preview ?? (removed ? null : current);
+  return (
+    <div className="space-y-2">
+      <p className="flex items-center gap-1.5 text-xs font-bold text-navy-700">
+        <Icon className="h-3.5 w-3.5 text-brand-600" /> {label}
+      </p>
+      {removed && <input type="hidden" name={removeName} value="1" />}
+      {shown &&
+        (kind === "video" ? (
+          <video src={shown} controls preload="metadata" playsInline className="aspect-video w-full rounded-2xl bg-navy-950" />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={shown} alt="" className="max-h-60 w-full rounded-2xl bg-navy-50 object-contain ring-1 ring-navy-100" />
+        ))}
+      <label className="flex cursor-pointer items-center gap-2 rounded-2xl border-2 border-dashed border-brand-200 bg-navy-50/60 px-3 py-2.5 text-xs text-navy-500 transition hover:border-brand-400">
+        <Upload className="h-4 w-4 shrink-0 text-brand-500" />
+        <span className="font-semibold text-navy-700">{preview ? "File baru dipilih — klik Simpan" : shown ? "Ganti file" : "Pilih file"}</span>
+        <span className="ml-auto text-[11px] text-navy-400">{hint}</span>
+        <input
+          type="file"
+          name={name}
+          accept={kind === "video" ? "video/mp4" : "image/jpeg,image/png,image/webp"}
+          className="sr-only"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            setPreview(f ? URL.createObjectURL(f) : null);
+            if (f) setRemoved(false);
+          }}
+        />
+      </label>
+      {current && !preview && !removed && (
+        <button type="button" className="text-xs font-semibold text-rose-600 hover:underline" onClick={() => setRemoved(true)}>
+          Hapus file
+        </button>
+      )}
+    </div>
+  );
+}
 
 export const GUIDE_CATEGORIES = ["Memulai", "Akun", "Pendaftaran & Pembayaran", "Belajar di Kelas", "Games", "Lainnya"];
 
@@ -230,9 +292,26 @@ export function GuideForm({ guide, categories }: { guide: GuideValues | null; ca
           </Link>
         </section>
 
+        <section className="card space-y-4">
+          <p className="flex items-center gap-2 text-sm font-bold text-navy-800">
+            <Film className="h-4 w-4 text-brand-600" /> Video simulasi (unggah MP4)
+          </p>
+          {fe?.media && <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">{fe.media[0]}</p>}
+          <MediaPicker name="videoFile" removeName="removeVideoFile" label="Versi laptop / komputer" hint="MP4 ≤ 30 MB" current={g?.videoFileUrl} kind="video" icon={Monitor} />
+          <MediaPicker name="videoFileMobile" removeName="removeVideoFileMobile" label="Versi HP" hint="MP4 ≤ 30 MB" current={g?.videoFileMobileUrl} kind="video" icon={Smartphone} />
+          <p className="text-[11px] text-navy-400">Unggah satu per satu bila ukuran total &gt; 30 MB. Peserta bisa memilih tab Laptop / HP.</p>
+        </section>
+
         <section className="card space-y-3">
           <p className="flex items-center gap-2 text-sm font-bold text-navy-800">
-            <Video className="h-4 w-4 text-brand-600" /> Video tutorial
+            <Network className="h-4 w-4 text-brand-600" /> Infografis / flowchart
+          </p>
+          <MediaPicker name="infographic" removeName="removeInfographic" label="Gambar ringkasan alur" hint="JPG/PNG ≤ 5 MB" current={g?.infographicUrl} kind="image" icon={ImagePlus} />
+        </section>
+
+        <section className="card space-y-3">
+          <p className="flex items-center gap-2 text-sm font-bold text-navy-800">
+            <Video className="h-4 w-4 text-brand-600" /> Video dari YouTube / Drive (opsional)
           </p>
           <Field label="Link YouTube / Google Drive" htmlFor="videoUrl" errors={fe?.videoUrl}>
             <input id="videoUrl" name="videoUrl" value={video} onChange={(e) => setVideo(e.target.value)} className="input" placeholder="https://youtu.be/…" />

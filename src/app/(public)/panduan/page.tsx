@@ -22,7 +22,10 @@ type GuideCard = {
   summary: string | null;
   category: string;
   coverUrl: string | null;
+  infographicUrl: string | null;
   videoUrl: string | null;
+  videoFileUrl: string | null;
+  videoFileMobileUrl: string | null;
   steps: { imageUrl: string | null }[];
   _count: { steps: number };
 };
@@ -30,7 +33,7 @@ type GuideCard = {
 function Thumb({ g, className }: { g: GuideCard; className?: string }) {
   const vi = videoInfo(g.videoUrl);
   // sampul → thumbnail video → gambar langkah pertama
-  const src = g.coverUrl ?? vi?.thumb ?? g.steps[0]?.imageUrl;
+  const src = g.coverUrl ?? g.infographicUrl ?? vi?.thumb ?? g.steps[0]?.imageUrl;
   return (
     <div className={cn("relative overflow-hidden bg-linear-to-br from-brand-500 via-brand-700 to-navy-900", className)}>
       {src ? (
@@ -42,7 +45,7 @@ function Thumb({ g, className }: { g: GuideCard; className?: string }) {
           <LifeBuoy className="absolute bottom-4 right-4 h-16 w-16 -rotate-12 text-white/15" />
         </>
       )}
-      {vi && (
+      {(vi || g.videoFileUrl || g.videoFileMobileUrl) && (
         <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-navy-950/70 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur">
           <PlayCircle className="h-3.5 w-3.5" /> Video
         </span>
@@ -64,7 +67,7 @@ export default async function PanduanPage({ searchParams }: PageProps<"/panduan"
         ...(q ? { OR: [{ title: { contains: q } }, { summary: { contains: q } }, { content: { contains: q } }, { steps: { some: { body: { contains: q } } } }] } : {}),
       },
       orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
-      select: { id: true, slug: true, title: true, summary: true, category: true, coverUrl: true, videoUrl: true, isFeatured: true,
+      select: { id: true, slug: true, title: true, summary: true, category: true, coverUrl: true, infographicUrl: true, videoUrl: true, videoFileUrl: true, videoFileMobileUrl: true, isFeatured: true,
         steps: { where: { imageUrl: { not: null } }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }], take: 1, select: { imageUrl: true } },
         _count: { select: { steps: true } },
       },
