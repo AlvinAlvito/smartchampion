@@ -314,3 +314,22 @@ export function ClassGallery({ images }: { images: ShowcaseImage[] }) {
     </section>
   );
 }
+
+/* ---------------- Gambar yang bisa diperbesar (dipakai juga di Panduan) ---------------- */
+
+export function ZoomImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={cn("group relative flex w-full justify-center overflow-hidden", className)} aria-label={`Perbesar gambar: ${alt}`}>
+        {/* gambar potret (mis. screenshot HP / form) dibatasi tingginya agar tidak memenuhi layar */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={alt} className="max-h-[70vh] w-auto max-w-full transition duration-500 group-hover:scale-[1.02]" loading="lazy" />
+        <span className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-navy-900/60 text-white opacity-0 transition group-hover:opacity-100">
+          <Expand className="h-4 w-4" />
+        </span>
+      </button>
+      {open && <Lightbox images={[{ id: 0, url: src, caption: alt }]} index={0} onClose={() => setOpen(false)} />}
+    </>
+  );
+}

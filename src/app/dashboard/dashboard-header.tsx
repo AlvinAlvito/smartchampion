@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, CalendarDays, Gamepad2, House, LogOut, Receipt, UserRound } from "lucide-react";
+import { BookOpen, CalendarDays, Gamepad2, House, LifeBuoy, LogOut, Receipt, UserRound } from "lucide-react";
 import { logoutAction } from "@/app/actions/auth";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,7 @@ const NAV = [
   { href: "/dashboard/jadwal", label: "Jadwal", icon: CalendarDays },
   { href: "/dashboard/transaksi", label: "Transaksi", icon: Receipt },
   { href: "/dashboard/akun", label: "Akun", icon: UserRound },
+  { href: "/panduan", label: "Panduan", icon: LifeBuoy },
 ];
 
 export function DashboardHeader({ name }: { name: string }) {

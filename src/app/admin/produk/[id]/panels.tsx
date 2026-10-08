@@ -204,7 +204,7 @@ function MaterialDialog({
         {type === "PDF" && (
           <div className="grid gap-4 rounded-3xl bg-navy-50/60 p-4 sm:grid-cols-2">
             <div>
-              <span className="label">Unggah PDF (maks 10 MB)</span>
+              <span className="label">Unggah PDF (maks 30 MB)</span>
               <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-brand-200 bg-white p-4 text-center text-sm text-navy-500 transition hover:border-brand-400 hover:bg-brand-50/40">
                 <Upload className="h-6 w-6 text-brand-500" />
                 <span className="font-semibold text-navy-700">{fileName || "Pilih file PDF"}</span>

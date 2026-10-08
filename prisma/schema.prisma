@@ -1100,3 +1100,46 @@ model ActivityLog {
   @@index([createdAt])
   @@map("activity_logs")
 }
+
+/// Panduan pemakaian website (halaman publik /panduan), dikelola admin di /admin/panduan
+model Guide {
+  id          Int      @id @default(autoincrement())
+  slug        String   @unique @db.VarChar(160)
+  title       String   @db.VarChar(160)
+  summary     String?  @db.VarChar(255)
+  /// mis. "Pendaftaran & Pembayaran", "Akun", "Belajar di Kelas"
+  category    String   @default("Umum") @db.VarChar(60)
+  /// gambar sampul (storage/class-media, publik)
+  coverUrl    String?  @db.VarChar(255)
+  /// video tutorial YouTube / Google Drive (ditampilkan sebagai embed)
+  videoUrl    String?  @db.VarChar(500)
+  /// pengantar / catatan (format teks sederhana: paragraf, ## judul, - poin)
+  content     String?  @db.Text
+  isPublished Boolean  @default(true)
+  /// tampil sebagai panduan unggulan di atas
+  isFeatured  Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  viewCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  steps GuideStep[]
+
+  @@index([isPublished, sortOrder])
+  @@map("guides")
+}
+
+/// Langkah-langkah bergambar dalam sebuah panduan
+model GuideStep {
+  id        Int     @id @default(autoincrement())
+  guideId   Int
+  sortOrder Int     @default(0)
+  title     String  @db.VarChar(160)
+  body      String  @db.Text
+  imageUrl  String? @db.VarChar(255)
+
+  guide Guide @relation(fields: [guideId], references: [id], onDelete: Cascade)
+
+  @@index([guideId, sortOrder])
+  @@map("guide_steps")
+}

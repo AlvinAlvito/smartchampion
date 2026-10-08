@@ -9,6 +9,7 @@ import {
   CalendarRange,
   ChevronRight,
   ClipboardCheck,
+  Copy,
   FileQuestion,
   Pencil,
   Plus,
@@ -45,11 +46,14 @@ export function MeetingDialog({
   meeting,
   onClose,
   nextNumber,
+  copy = false,
 }: {
   productId: number;
   meeting: Pick<MeetingRow, "id" | "title" | "startAt" | "endAt" | "meetingUrl" | "recordingUrl" | "notes"> | null;
   onClose: () => void;
   nextNumber: number;
+  /** true = form terisi salinan pertemuan lain, disimpan sebagai pertemuan BARU */
+  copy?: boolean;
 }) {
   const { formProps, pending, fieldErrors: fe } = useFormAction(saveSessionAction, { onSuccess: onClose });
   const s = meeting;
@@ -58,8 +62,12 @@ export function MeetingDialog({
       open
       onClose={onClose}
       icon={CalendarPlus}
-      title={s ? "Edit pertemuan" : "Tambah pertemuan"}
-      description="Waktu dalam WIB. Jika waktu selesai kosong, otomatis 90 menit. Peserta hanya bisa absen sendiri di antara waktu mulai & selesai."
+      title={copy ? "Duplikat pertemuan" : s ? "Edit pertemuan" : "Tambah pertemuan"}
+      description={
+        copy
+          ? "Salinan dari pertemuan sebelumnya — periksa judul & jadwal, lalu simpan sebagai pertemuan baru. Soal worksheet, absensi & nilai tidak ikut disalin."
+          : "Waktu dalam WIB. Jika waktu selesai kosong, otomatis 90 menit. Peserta hanya bisa absen sendiri di antara waktu mulai & selesai."
+      }
       footer={
         <>
           <button type="button" className="btn-ghost" onClick={onClose}>
@@ -73,7 +81,7 @@ export function MeetingDialog({
     >
       <form {...formProps} id="session-form" className="grid gap-4 sm:grid-cols-2">
         <input type="hidden" name="productId" value={productId} />
-        {s && <input type="hidden" name="id" value={s.id} />}
+        {s && !copy && <input type="hidden" name="id" value={s.id} />}
         <Field label="Judul pertemuan *" htmlFor="title" errors={fe?.title} className="sm:col-span-2">
           <input id="title" name="title" defaultValue={s?.title ?? `Pertemuan ${nextNumber}: `} className="input" />
         </Field>
@@ -148,8 +156,17 @@ function BulkDialog({ productId, nextNumber, onClose }: { productId: number; nex
 const PHASE = { upcoming: { l: "Akan datang", tone: "blue" }, live: { l: "Berlangsung", tone: "green" }, done: { l: "Selesai", tone: "gray" } } as const;
 
 export function MeetingsPanel({ productId, meetings, paidCount, now }: { productId: number; meetings: MeetingRow[]; paidCount: number; now: number }) {
-  const [dialog, setDialog] = useState<{ open: boolean; meeting: MeetingRow | null }>({ open: false, meeting: null });
+  const [dialog, setDialog] = useState<{ open: boolean; meeting: MeetingRow | null; copy?: boolean }>({ open: false, meeting: null });
   const [bulk, setBulk] = useState(false);
+  /** Salinan pertemuan → diletakkan setelah pertemuan terakhir: nomor berikutnya, jadwal +7 hari, durasi sama */
+  const duplicate = (m: MeetingRow) => {
+    const next = meetings.length + 1;
+    const last = meetings.reduce((a, b) => (new Date(b.startAt) > new Date(a.startAt) ? b : a), m);
+    const start = new Date(new Date(last.startAt).getTime() + 7 * 86_400_000);
+    const end = new Date(start.getTime() + (new Date(m.endAt).getTime() - new Date(m.startAt).getTime()));
+    const title = /^pertemuan\s+\d+/i.test(m.title) ? m.title.replace(/^(pertemuan\s+)\d+/i, `$1${next}`) : `${m.title} (salinan)`;
+    setDialog({ open: true, copy: true, meeting: { ...m, title, startAt: start, endAt: end, recordingUrl: null } });
+  };
   return (
     <section className="card">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -230,8 +247,11 @@ export function MeetingsPanel({ productId, meetings, paidCount, now }: { product
                     </span>
                   </div>
                 </Link>
-                <button className="btn-icon" onClick={() => setDialog({ open: true, meeting: m })} aria-label={`Edit ${m.title}`}>
+                <button className="btn-icon" onClick={() => setDialog({ open: true, meeting: m })} aria-label={`Edit ${m.title}`} title="Edit">
                   <Pencil className="h-4 w-4" />
+                </button>
+                <button className="btn-icon" onClick={() => duplicate(m)} aria-label={`Duplikat ${m.title}`} title="Duplikat jadi pertemuan baru">
+                  <Copy className="h-4 w-4" />
                 </button>
                 <ConfirmButton
                   title="Hapus pertemuan?"
@@ -258,6 +278,7 @@ export function MeetingsPanel({ productId, meetings, paidCount, now }: { product
         <MeetingDialog
           productId={productId}
           meeting={dialog.meeting}
+          copy={dialog.copy}
           nextNumber={meetings.length + 1}
           onClose={() => setDialog({ open: false, meeting: null })}
         />

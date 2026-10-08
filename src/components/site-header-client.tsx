@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Award, BookOpen, Gamepad2, LayoutDashboard, LogIn, LogOut, Menu, Sparkles, UserPlus, X } from "lucide-react";
+import { Award, BookOpen, Gamepad2, LayoutDashboard, LifeBuoy, LogIn, LogOut, Menu, Sparkles, UserPlus, X } from "lucide-react";
 import { logoutAction } from "@/app/actions/auth";
 import { cn } from "@/lib/utils";
 import { Logo } from "./logo";
@@ -13,6 +13,7 @@ const NAV = [
   { href: "/kelas", label: "Kelas", icon: BookOpen },
   { href: "/tutor", label: "Tutor", icon: Award },
   { href: "/games", label: "Games", icon: Gamepad2 },
+  { href: "/panduan", label: "Panduan", icon: LifeBuoy },
 ];
 
 type User = { name: string; role: string; staff: boolean } | null;

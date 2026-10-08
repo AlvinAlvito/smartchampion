@@ -334,7 +334,7 @@ function GalleryCard({ productId, images }: { productId: number; images: Gallery
         </form>
       </div>
       {fe?.files && <p className="mb-2 text-xs font-medium text-rose-600">{fe.files.join(" · ")}</p>}
-      <p className="mb-3 text-xs text-navy-400">Maks 10 gambar sekali unggah (masing-masing ≤ 5 MB, total ≤ 12 MB), hingga 60 gambar per kelas.</p>
+      <p className="mb-3 text-xs text-navy-400">Maks 10 gambar sekali unggah (masing-masing ≤ 5 MB, total ≤ 35 MB), hingga 60 gambar per kelas.</p>
       {images.length ? (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {images.map((g, i) => (

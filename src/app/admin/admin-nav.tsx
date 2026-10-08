@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { BookOpen, Bot, BriefcaseBusiness, ClipboardList, Contact, DatabaseBackup, Gamepad2, Globe, GraduationCap, LayoutDashboard, LogOut, Megaphone, Menu, MessageSquareHeart, MessagesSquare, PanelLeftClose, PanelLeftOpen, Presentation, Receipt, Send, Trophy, Users, X, type LucideIcon } from "lucide-react";
+import { BookOpen, Bot, BriefcaseBusiness, ClipboardList, Contact, DatabaseBackup, Gamepad2, Globe, GraduationCap, LayoutDashboard, LifeBuoy, LogOut, Megaphone, Menu, MessageSquareHeart, MessagesSquare, PanelLeftClose, PanelLeftOpen, Presentation, Receipt, Send, Trophy, Users, X, type LucideIcon } from "lucide-react";
 import { logoutAction } from "@/app/actions/auth";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,7 @@ const ITEMS: Item[] = [
   { href: "/admin/feedback", label: "Feedback Peserta", icon: MessageSquareHeart },
   { href: "/admin/games", label: "Games", icon: Gamepad2 },
   { href: "/admin/chatbot", label: "Chatbot AI", icon: Bot },
+  { href: "/admin/panduan", label: "Panduan", icon: LifeBuoy },
 ];
 
 type User = { name: string; roleLabel: string; role: string };

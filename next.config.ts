@@ -45,9 +45,9 @@ const nextConfig: NextConfig = {
     "/opengraph-image": ["./assets/brand/**/*"],
   },
   experimental: {
-    // Upload materi PDF (maks 10 MB) lewat Server Action
-    serverActions: { bodySizeLimit: "12mb" },
-    proxyClientMaxBodySize: "12mb",
+    // Upload materi PDF (maks 30 MB) lewat Server Action (+ ruang untuk isian form lain)
+    serverActions: { bodySizeLimit: "35mb" },
+    proxyClientMaxBodySize: "35mb",
   },
 };
 

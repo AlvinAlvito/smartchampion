@@ -8,7 +8,7 @@ import { removeClassImage, saveClassImage } from "@/lib/storage";
 import type { ActionResult } from "@/lib/action-result";
 import { logActivity } from "@/lib/activity";
 
-/** Maks gambar galeri per unggahan (batas body Server Action 12 MB) */
+/** Maks gambar galeri per unggahan (batas body Server Action 35 MB) */
 const MAX_GALLERY_UPLOAD = 10;
 const MAX_GALLERY_TOTAL = 60;
 const MAX_POSTS = 30;

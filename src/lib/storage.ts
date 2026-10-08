@@ -5,11 +5,11 @@ import path from "node:path";
 
 /** Folder file privat (di luar /public, jadi tidak bisa diakses tanpa cek hak akses) */
 export const STORAGE_DIR = path.join(process.cwd(), "storage", "materials");
-export const MAX_PDF_BYTES = 10 * 1024 * 1024;
+export const MAX_PDF_BYTES = 30 * 1024 * 1024;
 
 export async function savePdf(file: File) {
   if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) throw new Error("File harus berformat PDF");
-  if (file.size > MAX_PDF_BYTES) throw new Error("Ukuran PDF maksimal 10 MB");
+  if (file.size > MAX_PDF_BYTES) throw new Error("Ukuran PDF maksimal 30 MB");
   const buf = Buffer.from(await file.arrayBuffer());
   if (buf.subarray(0, 4).toString() !== "%PDF") throw new Error("Isi file bukan PDF yang valid");
   await fs.mkdir(STORAGE_DIR, { recursive: true });

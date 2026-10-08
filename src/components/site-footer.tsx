@@ -29,6 +29,7 @@ export function SiteFooter() {
             <li><Link href="/kelas" className="transition hover:text-white">Katalog kelas</Link></li>
             <li><Link href="/tutor" className="transition hover:text-white">Tutor kami</Link></li>
             <li><Link href="/games" className="transition hover:text-white">Games edukasi</Link></li>
+            <li><Link href="/panduan" className="transition hover:text-white">Panduan pengguna</Link></li>
             <li><Link href="/register" className="transition hover:text-white">Daftar akun</Link></li>
           </ul>
         </div>

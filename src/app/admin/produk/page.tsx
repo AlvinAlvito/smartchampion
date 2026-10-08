@@ -12,6 +12,7 @@ import { quotaVisible } from "@/lib/quota";
 import { Pagination, readPage } from "@/components/pagination";
 import { productWhere, readProductFilters } from "@/lib/product-filters";
 import { SelectableCard, SelectableGrid } from "@/components/selectable-grid";
+import { productIdsBySchedule } from "@/lib/product-order";
 import { deleteProductsAction, deleteProductsByFilterAction } from "@/app/actions/products";
 
 const PER_PAGE = 12;
@@ -26,16 +27,13 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
   const filters = readProductFilters((k) => (typeof sp[k] === "string" ? (sp[k] as string) : null));
   const where = productWhere(filters);
   const query = new URLSearchParams(Object.entries(filters).filter(([, v]) => v) as [string, string][]).toString();
-  const [total, products] = await Promise.all([
-    prisma.product.count({ where }),
-    prisma.product.findMany({
-      where,
-      orderBy: [{ jenjang: "asc" }, { name: "asc" }],
-      include: { _count: { select: { materials: true, sessions: true } } },
-      skip,
-      take,
-    }),
-  ]);
+  // urut berdasarkan jadwal: berjalan/akan datang dulu, yang sudah selesai di bawah (lib/product-order)
+  const order = await productIdsBySchedule(where);
+  const total = order.ids.length;
+  const pageIds = order.ids.slice(skip, skip + take);
+  const products = (
+    await prisma.product.findMany({ where: { id: { in: pageIds } }, include: { _count: { select: { materials: true, sessions: true } } } })
+  ).sort((a, b) => pageIds.indexOf(a.id) - pageIds.indexOf(b.id));
   // jumlah kelas per jenis (mengikuti pencarian & jenjang, bukan tab jenis)
   const typeCounts = await prisma.product.groupBy({ by: ["type"], where: productWhere({ ...filters, tipe: "" }), _count: { _all: true } });
   const countOf = (t: string) => (t ? (typeCounts.find((x) => x.type === t)?._count._all ?? 0) : typeCounts.reduce((a, x) => a + x._count._all, 0));
@@ -112,6 +110,11 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
           desc={query ? "Coba kata kunci, jenjang, atau jenis produk lain." : "Tambahkan kelas pertama lewat tombol Tambah kelas."}
         />
       )}
+      {products.length > 0 && (
+        <p className="mb-3 text-xs text-navy-400">
+          Diurutkan menurut jadwal: kelas yang sedang berjalan / akan datang paling atas, kelas yang sudah selesai di bawah.
+        </p>
+      )}
       <SelectableGrid
         key={`${query}|${page}`}
         ids={products.map((p) => p.id)}
@@ -146,6 +149,11 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
                       {p.type === "PRIVATE" && (
                         <span className="ml-1.5 inline-block rounded-md bg-amber-400 px-1.5 py-0.5 align-middle text-[10px] font-extrabold text-navy-950">
                           VIP
+                        </span>
+                      )}
+                      {order.finished.has(p.id) && (
+                        <span className="ml-1.5 inline-block rounded-md bg-navy-100 px-1.5 py-0.5 align-middle text-[10px] font-extrabold text-navy-500">
+                          SELESAI
                         </span>
                       )}
                     </p>
