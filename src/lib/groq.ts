@@ -99,6 +99,6 @@ export async function groqJson<T>(messages: Message[], schemaName: string, schem
   if (last?.status === 401) throw new GroqError("API key Groq tidak valid atau sudah dicabut.");
   if (!last || last.status === 429) throw new GroqError("Kuota/limit Groq sedang penuh. Tunggu sebentar lalu coba lagi.");
   if (last.ok) throw new GroqError("Jawaban AI tidak bisa dibaca. Coba lagi.");
-  if (last.status === 413) throw new GroqError("Kuota AI per menit sedang penuh untuk permintaan sebesar ini. Tunggu ±1 menit lalu coba lagi.");
+  if (last.status === 413) throw new GroqError("Permintaan AI terlalu besar untuk kuota token per menit layanan AI (Groq). Coba lagi ±1 menit; bila terus terjadi, kuotanya perlu dinaikkan.");
   throw new GroqError(`Layanan AI menolak permintaan (${last.status}). Coba lagi.`);
 }

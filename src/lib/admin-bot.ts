@@ -32,7 +32,7 @@ const BATCH_CHARS = 5200; // transkrip per permintaan AI (muat di kuota token pe
 const MAX_MSG_CHARS = 700;
 const NOTES_MAX = 7000;
 const MAX_MEMORIES = 1200;
-const ANSWER_MAX = 600; // panjang contoh jawaban yang dikirim ke AI saat menjawab
+const ANSWER_MAX = 450; // panjang contoh jawaban yang dikirim ke AI saat menjawab
 
 const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 const words = (s: string) => new Set(norm(s).split(" ").filter((w) => w.length >= 3));
@@ -352,8 +352,8 @@ export async function cloneFor(accountId: number, query: string, opts: { ignoreE
   };
   const day = (d: Date) => new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(d);
   // hemat token (kuota gratis Groq ±8.000 token/menit per model): hanya ingatan paling relevan
-  const qa = pick("QA", 3000, 8);
-  const facts = pick("FACT", 1500, 12);
+  const qa = pick("QA", 2400, 6);
+  const facts = pick("FACT", 1200, 10);
   const memory = [
     facts.length ? `## Informasi yang pernah disampaikan admin\n${facts.map((f) => `- [${f.category} · ${day(f.learnedAt)}] ${f.answer}`).join("\n")}` : "",
     qa.length ? `## Contoh tanya-jawab admin (tiru cara & gaya menjawabnya)\n${qa.map((r) => `### [${r.category}] ${r.question}\nJawaban admin: ${r.answer.slice(0, ANSWER_MAX)}`).join("\n\n")}` : "",

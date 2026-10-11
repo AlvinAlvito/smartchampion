@@ -28,8 +28,21 @@ const SCHEMA = {
   },
 };
 
+export type LiveOptions = {
+  /** pertanyaan customer → kelas/tutor yang relevan ditulis lengkap, sisanya diringkas */
+  query?: string;
+  /** batas karakter daftar kelas (tanpa batas bila kosong) */
+  classBudget?: number;
+  /** "full" = profil lengkap; "auto" = hanya bila ditanya; "compact" = nama & bidang saja */
+  tutors?: "full" | "auto" | "compact";
+};
+
+const TUTOR_ASKED = /tutor|pengajar|pemateri|mentor|pembimbing|guru|diajar|ngajar|mengajar/i;
+/** kata kunci pencocokan kelas (≥2 huruf agar "sd" ikut terbaca) */
+const keys = (s: string) => new Set(s.toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) ?? []);
+
 /** Data otomatis dari sistem — selalu terbaru, tidak perlu diketik ulang admin. */
-export async function buildLiveContext() {
+export async function buildLiveContext(opts: LiveOptions = {}) {
   const [catalog, tutors, packages] = await Promise.all([
     getCatalog(),
     prisma.tutor.findMany({
@@ -40,7 +53,7 @@ export async function buildLiveContext() {
     prisma.productPackage.findMany({ where: { isActive: true }, orderBy: { sessions: "asc" }, select: { productId: true, sessions: true, price: true } }),
   ]);
   // satu baris ringkas per kelas (hemat token, semua fakta penting tetap ada)
-  const kelas = catalog.map((p) => {
+  const full = catalog.map((p) => {
     const pengajar = tutors.filter((t) => t.classes.some((c) => c.id === p.id)).map((t) => t.nama);
     // VIP Privat: 1-on-1 tanpa kuota, dibeli per paket pertemuan & dibayar sekali
     const kuota =
@@ -69,25 +82,71 @@ export async function buildLiveContext() {
       .filter(Boolean)
       .join(" | ");
   });
+  // Kuota token terbatas → bila daftar kelas melebihi batas: kelas yang cocok dengan pertanyaan ditulis lengkap,
+  // sisanya satu baris pendek; bila masih tidak muat, sisanya dihitung saja (AI dilarang menyimpulkan "tidak ada").
+  const q = keys(opts.query ?? "");
+  let kelas = full;
+  let hidden = 0;
+  if (opts.classBudget && full.join("\n").length > opts.classBudget) {
+    const short = catalog.map(
+      (p) => `- ${p.name} | ${JENJANG_LABEL[p.jenjang]}${p.gradeLabel ? ` ${p.gradeLabel}` : ""} | ${formatRupiah(p.price)}/${p.priceUnit} | ${PRODUCT_STATUS_LABEL[p.status]} | /kelas/${p.slug}`,
+    );
+    const order = catalog
+      .map((p, i) => {
+        const w = keys(`${p.name} ${JENJANG_LABEL[p.jenjang]} ${p.gradeLabel ?? ""} ${p.type === "PRIVATE" ? "vip privat private" : ""}`);
+        let score = 0;
+        q.forEach((t) => w.has(t) && score++);
+        return { i, score };
+      })
+      .sort((a, b) => b.score - a.score || a.i - b.i);
+    const out: (string | null)[] = catalog.map(() => null);
+    let used = 0;
+    for (const { i, score } of order) {
+      const line = score > 0 && used + full[i].length <= opts.classBudget * 0.75 ? full[i] : short[i];
+      if (used + line.length > opts.classBudget) continue;
+      out[i] = line;
+      used += line.length + 1;
+    }
+    kelas = out.filter((l): l is string => l !== null);
+    hidden = full.length - kelas.length;
+  }
+
   const firstLine = (v: string | null) => (v ?? "").split("\n").find(Boolean) ?? "";
-  const tutorLines = tutors.map((t) =>
-    [
-      `- ${t.nama}`,
-      t.bidang,
-      t.prestasi && `prestasi: ${firstLine(t.prestasi)}`,
-      t.pengalaman && `pengalaman: ${firstLine(t.pengalaman)}`,
-      t.riwayatPendidikan && `pendidikan: ${firstLine(t.riwayatPendidikan)}`,
-      t.classes.length && `mengajar: ${t.classes.map((c) => c.name).join(", ")}`,
-    ]
-      .filter(Boolean)
-      .join(" | "),
-  );
+  const mode = opts.tutors ?? "full";
+  const asked =
+    mode !== "auto" ||
+    TUTOR_ASKED.test(opts.query ?? "") ||
+    tutors.some((t) => (t.nama.toLowerCase().match(/[\p{L}]{4,}/gu) ?? []).some((n) => q.has(n)));
+  const tutorLines = !asked
+    ? []
+    : tutors.map((t) =>
+        (mode === "compact"
+          ? [`- ${t.nama}`, t.bidang, t.classes.length && `mengajar: ${t.classes.map((c) => c.name).join(", ")}`]
+          : [
+              `- ${t.nama}`,
+              t.bidang,
+              t.prestasi && `prestasi: ${firstLine(t.prestasi)}`,
+              t.pengalaman && `pengalaman: ${firstLine(t.pengalaman)}`,
+              t.riwayatPendidikan && `pendidikan: ${firstLine(t.riwayatPendidikan)}`,
+              t.classes.length && `mengajar: ${t.classes.map((c) => c.name).join(", ")}`,
+            ]
+        )
+          .filter(Boolean)
+          .join(" | "),
+      );
   return [
     `## Katalog kelas COC yang dibuka (${catalog.length}). Format: nama | jenjang | harga | status | kuota | jadwal | mulai | tutor | halaman`,
     kelas.length ? kelas.join("\n") : "(belum ada kelas yang dibuka)",
+    kelas.length < full.length || kelas.some((l, i) => l !== full[i])
+      ? `(Daftar diringkas${hidden ? `; ${hidden} kelas lain tidak ditampilkan` : ""}. JANGAN menyimpulkan suatu kelas/jadwal tidak ada hanya karena tidak tertulis di sini — arahkan ke katalog /kelas atau set answered=false.)`
+      : "",
     "",
     `## Tutor (${tutors.length})`,
-    tutorLines.length ? tutorLines.join("\n") : "(profil tutor belum dipublikasikan)",
+    !asked
+      ? "(Profil tutor tidak dimuat karena tidak ditanyakan; nama tutor tiap kelas ada di katalog di atas, profil lengkap di /tutor.)"
+      : tutorLines.length
+        ? tutorLines.join("\n")
+        : "(profil tutor belum dipublikasikan)",
     "",
     "## Halaman situs",
     "- Katalog kelas: /kelas · Profil tutor: /tutor · Games edukasi: /games",
@@ -98,11 +157,11 @@ export async function buildLiveContext() {
 const words = (s: string) => new Set(s.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? []);
 
 /** Basis pengetahuan admin (dipangkas ke entri paling relevan bila sangat banyak). */
-export async function buildKnowledgeContext(query: string) {
+export async function buildKnowledgeContext(query: string, budget = KNOWLEDGE_BUDGET) {
   const rows = await prisma.chatKnowledge.findMany({ where: { isActive: true }, orderBy: [{ urutan: "asc" }, { id: "asc" }] });
   let picked = rows;
   const total = rows.reduce((n, r) => n + r.judul.length + r.isi.length, 0);
-  if (total > KNOWLEDGE_BUDGET) {
+  if (total > budget) {
     const q = words(query);
     const scored = rows
       .map((r) => {
@@ -115,7 +174,7 @@ export async function buildKnowledgeContext(query: string) {
     picked = [];
     let used = 0;
     for (const { r } of scored) {
-      if (used + r.isi.length > KNOWLEDGE_BUDGET) continue;
+      if (used + r.isi.length + r.judul.length > budget) continue;
       picked.push(r);
       used += r.isi.length + r.judul.length;
     }
@@ -190,9 +249,10 @@ const WA_SCHEMA = {
   },
 };
 
-const WA_RULES = `KHUSUS WHATSAPP (kamu membalas chat WhatsApp customer atas nama admin Pelatihan POSI)
+const WA_HEAD = `KHUSUS WHATSAPP (kamu membalas chat WhatsApp customer atas nama admin Pelatihan POSI)`;
 
-GAYA BALASAN WHATSAPP (menggantikan aturan gaya bahasa di atas)
+/** gaya umum — tidak dikirim bila admin punya klon AI (gaya klon menggantikannya, hemat token) */
+const WA_STYLE = `GAYA BALASAN WHATSAPP (menggantikan aturan gaya bahasa di atas)
 - Tulis seperti admin CS manusia yang ramah & sigap membalas chat: hangat, santai tapi sopan, kalimat mengalir alami. Bukan gaya robot/formal kaku, bukan gaya iklan.
 - Panggil "Kak" (pakai nama depannya bila diketahui, mis. "Kak Siti"). Sebut diri "kami" atau "aku" secara konsisten; jangan menyebut diri "asisten AI" kecuali ditanya.
 - Buka dengan respons singkat yang nyambung ke pertanyaannya (mis. "Siap Kak 😊", "Boleh banget Kak!", "Untuk kelas SD ada nih Kak 👇"), BUKAN mengulang pertanyaan atau "Terima kasih atas pertanyaannya".
@@ -205,9 +265,9 @@ GAYA BALASAN WHATSAPP (menggantikan aturan gaya bahasa di atas)
   Customer: "kak kelas olimpiade smp ada?"
   Balasan: "Ada Kak 😊 Untuk SMP tersedia *<nama kelas persis dari DATA>* dengan biaya *<harga persis dari DATA>*.
   Detailnya bisa Kakak lihat di https://pelatihan.posi.my.id/kelas ya. Mau sekalian aku bantu cek jadwal pertemuannya? ✨"
-  (nama kelas, harga, jadwal WAJIB diambil persis dari DATA — contoh di atas hanya pola nada)
+  (nama kelas, harga, jadwal WAJIB diambil persis dari DATA — contoh di atas hanya pola nada)`;
 
-FORMAT & KEAKURATAN
+const WA_FORMAT = `FORMAT & KEAKURATAN
 - Format WhatsApp: tebal pakai *satu bintang*, daftar pakai "- ", baris baru biasa. JANGAN pakai markdown [teks](link), **dua bintang**, atau menulis "\\n" sebagai teks.
 - Tautan ditulis lengkap: https://pelatihan.posi.my.id/kelas (bukan /kelas).
 - JANGAN PERNAH menulis nomor WhatsApp admin atau menyuruh menghubungi admin/nomor lain — customer SUDAH chat dengan admin; bila perlu bantuan manusia cukup set handoff=true.
@@ -280,22 +340,23 @@ function cloneRules(c: CloneContext) {
     (a ?? [])
       .filter((x) => !LATE.test(x))
       .slice(0, n)
-      .map((x) => `  • ${x}`)
+      .map((x) => `  • ${x.slice(0, 240)}`)
       .join("\n");
   return `
 
-TIRU GAYA ADMIN "${c.adminName}" — INI YANG PALING DIUTAMAKAN UNTUK GAYA (mengalahkan aturan gaya & contoh nada di atas, termasuk soal singkatan/emoji)
+TIRU GAYA ADMIN "${c.adminName}" — INI YANG PALING DIUTAMAKAN UNTUK GAYA (mengalahkan aturan gaya bahasa di atas, termasuk soal singkatan/emoji)
+- Balasan tetap pendek & langsung ke inti yang ditanya (2–4 kalimat atau maks ±5 baris poin); jangan menjejalkan info yang tidak diminta.
 - Kamu membalas SEBAGAI ${c.adminName}. Customer harus merasa sedang dibalas ${c.adminName} sendiri. ${p.ringkasan}
 - Sapaan ke customer: ${p.sapaan}. Sebutan diri: ${p.sebutanDiri}. Nada: ${(p.nada ?? []).join(", ")}.
 - Emoji: ${p.emoji}
 - Pola pembuka khasnya:
-${list(p.pembuka, 5)}
+${list(p.pembuka, 4)}
 - Pola penutup khasnya:
-${list(p.penutup, 5)}
+${list(p.penutup, 4)}
 - Kebiasaan menulis:
-${list(p.kebiasaan, 8)}
+${list(p.kebiasaan, 6)}
 - Contoh kalimat ASLI ${c.adminName} (tiru irama, pilihan kata & panjangnya; jangan disalin mentah bila tidak cocok):
-${list(p.contoh, 10)}
+${list(p.contoh, 6)}
 - Variasikan kalimat — jangan selalu memakai pembuka/penutup yang sama.
 - Kamu membalas SEKETIKA: JANGAN meminta maaf karena "baru merespon / telat membalas / slow respon" walaupun itu kebiasaan ${c.adminName}.
 - "{nama}" di contoh = nama customer; ganti dengan nama customer bila diketahui, kalau tidak hapus.
@@ -306,6 +367,24 @@ SUMBER JAWABAN TAMBAHAN
 - Info bertanggal lama tentang jadwal/tanggal/promo bisa sudah kedaluwarsa; bila tidak ada konfirmasi di data sistem dan kamu ragu → answered=false.
 - Aturan KEJUJURAN & FORMAT tetap berlaku penuh.`;
 }
+
+/**
+ * Kuota gratis Groq: ±8.000 token/menit per model (7.000 token masukan di model cadangan), dihitung dari
+ * masukan + batas keluaran. Prompt WA (aturan + pengetahuan + katalog + gaya & ingatan klon) bisa melebihinya,
+ * sehingga SEMUA model menolak (413) dan tidak ada balasan. Maka prompt dipaskan bertahap ke batas karakter ini.
+ * Terukur ±3,65 karakter/token → 20.500 karakter ≈ 5.600 token masukan (+1.200 keluaran).
+ */
+const WA_INPUT_CHARS = 20_500;
+const WA_MAX_TOKENS = 1200;
+/** tahap pemangkasan: makin kanan makin hemat */
+const FIT = [
+  { knowledge: 24_000, classes: 7000, memory: 4200, turns: 12, turnChars: 1500 },
+  { knowledge: 3600, classes: 4200, memory: 3000, turns: 8, turnChars: 700 },
+  { knowledge: 2600, classes: 2800, memory: 1800, turns: 6, turnChars: 450 },
+  { knowledge: 1800, classes: 1800, memory: 900, turns: 4, turnChars: 300 },
+];
+/** potong di batas baris agar tidak ada entri setengah */
+const cutLines = (s: string, max: number) => (s.length <= max ? s : s.slice(0, s.lastIndexOf("\n", max) > 0 ? s.lastIndexOf("\n", max) : max));
 
 /**
  * Balasan otomatis Chat WA dari basis pengetahuan & data sistem yang sama dengan chatbot situs.
@@ -322,18 +401,33 @@ export async function askWaChatbot(
     .slice(-3)
     .map((m) => m.content)
     .join(" ");
-  const [knowledge, live] = await Promise.all([buildKnowledgeContext(query), buildLiveContext()]);
-  const memory = clone?.memory ?? "";
-  const sys =
-    systemPrompt(knowledge, live, undefined, WA_RULES + (clone ? cloneRules(clone) : "")).replace(
-      "Pengguna belum login.",
-      customerName ? `Customer WhatsApp bernama "${customerName}" (belum tentu terdaftar di situs).` : "Customer menghubungi lewat WhatsApp.",
-    ) +
-    (opts.draftForAdmin ? DRAFT_RULES : "") +
-    (clone ? `\n\n=== DATA: INGATAN DARI CHAT ADMIN ${clone.adminName} ===\n${memory || "(belum ada)"}` : "");
+  const rules = [WA_HEAD, clone ? "" : WA_STYLE, WA_FORMAT].filter(Boolean).join("\n\n") + (clone ? cloneRules(clone) : "");
+  let knowledge = "";
+  let live = "";
+  let memory = "";
+  let sys = "";
+  let turns = history;
+  // mulai dari versi terlengkap; pangkas bertahap sampai muat di kuota token
+  for (const [i, f] of FIT.entries()) {
+    [knowledge, live] = await Promise.all([
+      buildKnowledgeContext(query, f.knowledge),
+      // profil tutor hanya dimuat bila ditanya; di tahap hemat cukup nama & bidang
+      buildLiveContext({ query, classBudget: f.classes, tutors: i >= 2 && TUTOR_ASKED.test(query) ? "compact" : "auto" }),
+    ]);
+    memory = cutLines(clone?.memory ?? "", f.memory);
+    turns = history.slice(-f.turns).map((m) => ({ ...m, content: m.content.slice(0, f.turnChars) }));
+    sys =
+      systemPrompt(knowledge, live, undefined, rules).replace(
+        "Pengguna belum login.",
+        customerName ? `Customer WhatsApp bernama "${customerName}" (belum tentu terdaftar di situs).` : "Customer menghubungi lewat WhatsApp.",
+      ) +
+      (opts.draftForAdmin ? DRAFT_RULES : "") +
+      (clone ? `\n\n=== DATA: INGATAN DARI CHAT ADMIN ${clone.adminName} ===\n${memory || "(belum ada)"}` : "");
+    if (sys.length + turns.reduce((n, m) => n + m.content.length, 0) <= WA_INPUT_CHARS) break;
+  }
   type Out = { reply: string; answered: boolean; handoff: boolean; frustrated: boolean; sources: string[] };
   const ask = (temperature: number) =>
-    groqJson<Out>([{ role: "system", content: sys }, ...history], "balasan_wa", WA_SCHEMA, { temperature, reasoningEffort: "medium", maxTokens: 1500, timeoutMs: 40_000 });
+    groqJson<Out>([{ role: "system", content: sys }, ...turns], "balasan_wa", WA_SCHEMA, { temperature, reasoningEffort: "medium", maxTokens: WA_MAX_TOKENS, timeoutMs: 40_000 });
   let r: Out;
   try {
     // sedikit variasi agar bahasanya natural; fakta tetap dijaga verifyGrounding

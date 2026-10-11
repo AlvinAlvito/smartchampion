@@ -18,6 +18,9 @@ const FRESH_MS = 5 * 60_000;
 const DEBOUNCE_MS = 6_000;
 const MAX_PER_CHAT_HOUR = 12;
 const HISTORY = 14;
+// kuota token gratis layanan AI dihitung per menit → saat penuh, tunggu lalu coba lagi (maks 2x)
+const QUOTA_RETRIES = 2;
+const QUOTA_WAIT_MS = 30_000;
 const MEDIA_TYPES = new Set(["image", "video", "gif", "document", "voice", "audio"]);
 const running = new Set<number>(); // chat yang sedang diproses (hindari balasan ganda)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -127,14 +130,29 @@ async function runAutoReply(chatId: number, messageId: number) {
     while (history.length && history[0].role === "assistant") history.shift();
 
     let bot;
-    try {
-      // klon AI admin (gaya + ingatan dari chat-chatnya) bila sudah pernah dianalisis; nama customer dari Master Lead bila ada
-      const lastQuestions = history.filter((m) => m.role === "user").slice(-3).map((m) => m.content).join(" ");
-      const [clone, lead] = await Promise.all([cloneFor(chat.accountId, lastQuestions), leadForChat(chat)]);
-      bot = await askWaChatbot(history, lead?.nama ?? chat.name ?? undefined, clone);
-    } catch (e) {
-      console.error("[wa-ai] AI gagal:", (e as Error).message);
-      return; // tidak membalas; admin tetap melihat chat belum terjawab
+    // klon AI admin (gaya + ingatan dari chat-chatnya) bila sudah pernah dianalisis; nama customer dari Master Lead bila ada
+    const lastQuestions = history.filter((m) => m.role === "user").slice(-3).map((m) => m.content).join(" ");
+    const [clone, lead] = await Promise.all([cloneFor(chat.accountId, lastQuestions), leadForChat(chat)]);
+    for (let attempt = 0; ; attempt++) {
+      try {
+        bot = await askWaChatbot(history, lead?.nama ?? chat.name ?? undefined, clone);
+        break;
+      } catch (e) {
+        const msg = (e as Error).message;
+        // kuota token per menit sedang penuh (beberapa chat masuk berbarengan) → tunggu kuota pulih lalu coba lagi
+        if (attempt < QUOTA_RETRIES && /kuota|limit/i.test(msg)) {
+          await sleep(QUOTA_WAIT_MS);
+          const newer = await prisma.waMessage.findFirst({ where: { chatId }, orderBy: { id: "desc" }, select: { id: true } });
+          // selama menunggu ada pesan baru → proses pesan terbaru itu (berhenti sendiri bila itu balasan admin)
+          if (newer && newer.id !== messageId) {
+            running.delete(chatId);
+            return runAutoReply(chatId, newer.id);
+          }
+          continue;
+        }
+        console.error("[wa-ai] AI gagal:", msg);
+        return; // tidak membalas; admin tetap melihat chat belum terjawab
+      }
     }
     if (bot.frustrated) return reply(chat, WA_AI_APOLOGY, "Customer terlihat kurang puas — dialihkan ke admin");
     // pertanyaan customer (pesan beruntun setelah balasan terakhir kita)
