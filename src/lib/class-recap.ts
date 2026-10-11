@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "./prisma";
 import { average, gradeOf, meetingPhase } from "./worksheet-shared";
+import { sessionAppliesTo } from "./session-access";
 
 /**
  * Rekap nilai & kehadiran satu kelas (per peserta × per pertemuan).
@@ -22,6 +23,8 @@ export async function getClassRecap(productId: number) {
         endAt: true,
         worksheetPublished: true,
         worksheetDueAt: true,
+        restricted: true,
+        viewers: { select: { userId: true } },
         _count: { select: { worksheetQuestions: true } },
         worksheetAttempts: { select: { userId: true, score: true, grade: true } },
         attendances: { select: { userId: true, status: true } },
@@ -53,6 +56,10 @@ export async function getClassRecap(productId: number) {
 
   const rows = people.map((p) => {
     const cells = sessions.map((s, i) => {
+      // jadwal khusus (VIP per peserta) yang bukan untuk peserta ini → tidak dihitung sama sekali
+      if (!sessionAppliesTo(s, p.userId)) {
+        return { score: null, grade: null, missed: false, attendance: null, manual: null, worksheetScore: null, na: true };
+      }
       const a = s.worksheetAttempts.find((x) => x.userId === p.userId);
       const att = s.attendances.find((x) => x.userId === p.userId);
       const manual = s.manualScores.find((x) => x.userId === p.userId);
@@ -68,13 +75,15 @@ export async function getClassRecap(productId: number) {
         manual: manual ? { note: manual.note, updatedBy: manual.updatedBy } : null,
         /** nilai otomatis worksheet (untuk ditampilkan saat nilai manual dipakai) */
         worksheetScore,
+        /** true = pertemuan ini bukan untuk peserta tsb */
+        na: false,
       };
     });
     const t = tryoutBy.get(p.userId);
     const tryout = t?.tryoutScore != null ? Math.round(t.tryoutScore * 10) / 10 : null;
     const scores = [...cells.filter((c) => c.score != null).map((c) => c.score!), ...(tryout != null ? [tryout] : [])];
     const avg = average(scores);
-    const started = meetings.filter((m) => m.started).length;
+    const started = meetings.filter((m, i) => m.started && !cells[i].na).length;
     const present = cells.filter((c) => c.attendance === "HADIR").length;
     return {
       userId: p.userId,

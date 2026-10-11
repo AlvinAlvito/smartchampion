@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowLeft, Bot, Check, CheckCheck, Clock, Eye, Hand, LoaderCircle, Play, SendHorizonal, TriangleAlert, UserSearch, Users } from "lucide-react";
+import { ArrowLeft, Bot, Check, CheckCheck, Clock, Eye, Hand, LoaderCircle, Play, TriangleAlert, UserSearch, Users } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
-import { WA_AI_FOOTER, WA_MAX_TEXT, formatWaPhone, waPreview } from "@/lib/wa-shared";
-import { EmojiPicker } from "@/components/emoji-picker";
+import { WA_AI_FOOTER, WA_TAG_CLASS, WA_TAG_LABEL, type WaCustomerTag, formatWaPhone, waPreview } from "@/lib/wa-shared";
+import { Composer } from "./composer";
 import { getJson, postJson, usePoll } from "./use-poll";
 
 type Msg = {
@@ -26,6 +26,9 @@ type Msg = {
 type ChatInfo = {
   id: number;
   name: string | null;
+  /** nama bawaan WhatsApp (bila berbeda dari nama di Master Lead) */
+  waName?: string | null;
+  tag?: WaCustomerTag | null;
   phone: string | null;
   isGroup?: boolean;
   hasIncoming: boolean;
@@ -103,10 +106,7 @@ export function Conversation({
   const [messages, setMessages] = useState<Msg[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
-  const [text, setText] = useState("");
-  const [sending, setSending] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLTextAreaElement>(null);
   const [aiBusy, setAiBusy] = useState(false);
   const stick = useRef(true); // tetap di bawah bila pengguna sedang di bawah
   const lastId = messages.length ? messages[messages.length - 1].id : 0;
@@ -178,35 +178,19 @@ export function Conversation({
     }
   };
 
-  const send = async () => {
-    const body = text.trim();
-    if (!body || sending) return;
-    setSending(true);
+  /** kirim balasan; true bila terkirim/antre (kolom tulis dikosongkan) */
+  const send = async (body: string) => {
     const r = await postJson<{ messageId?: number }>("/api/admin/wa/send", { chatId, text: body });
-    setSending(false);
     if (r.error && !r.messageId) {
       toast.error(r.error);
-      return;
+      return false;
     }
     if (r.error) toast.error(r.error);
-    else setText("");
     stick.current = true;
     const fresh = await getJson<Resp>(`/api/admin/wa/messages?chat=${chatId}&after=${lastId}`).catch(() => null);
     if (fresh) merge(fresh.messages, fresh.statuses);
     onActivity();
-  };
-
-  /** sisipkan emoji di posisi kursor */
-  const insertEmoji = (e: string) => {
-    const el = input.current;
-    const start = el?.selectionStart ?? text.length;
-    const end = el?.selectionEnd ?? text.length;
-    const next = (text.slice(0, start) + e + text.slice(end)).slice(0, WA_MAX_TEXT);
-    setText(next);
-    requestAnimationFrame(() => {
-      el?.focus();
-      el?.setSelectionRange(start + e.length, start + e.length);
-    });
+    return !r.error;
   };
 
   /** jeda / lanjutkan AI di chat ini */
@@ -237,11 +221,20 @@ export function Conversation({
           {chat?.isGroup ? <Users className="h-5 w-5" /> : (chat?.name || "?").trim().charAt(0).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-bold text-navy-900">{title}</p>
+          <p className="flex min-w-0 items-center gap-2">
+            <span className="truncate font-bold text-navy-900">{title}</span>
+            {chat?.tag && <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold", WA_TAG_CLASS[chat.tag])}>{WA_TAG_LABEL[chat.tag]}</span>}
+          </p>
           {chat?.isGroup ? (
             <p className="truncate text-xs text-sky-700">Grup WhatsApp · auto-balas AI tidak aktif di grup</p>
           ) : (
-            chat?.phone && chat.name && <p className="truncate text-xs text-navy-400">{formatWaPhone(chat.phone)}</p>
+            chat?.phone &&
+            chat.name && (
+              <p className="truncate text-xs text-navy-400">
+                {formatWaPhone(chat.phone)}
+                {chat.waName && <span className="ml-1.5">· nama WA: {chat.waName}</span>}
+              </p>
+            )
           )}
         </div>
         {!chat?.isGroup && (
@@ -369,28 +362,7 @@ export function Conversation({
           {connected && chat && !chat.hasIncoming && (
             <p className="mb-2 text-xs font-semibold text-amber-700">Demi keamanan nomor, balasan hanya untuk chat yang sudah pernah menghubungi Anda.</p>
           )}
-          <div className="flex items-end gap-2">
-            <EmojiPicker onPick={insertEmoji} disabled={!canReply || sending} />
-            <textarea
-              ref={input}
-              value={text}
-              onChange={(e) => setText(e.target.value.slice(0, WA_MAX_TEXT))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  void send();
-                }
-              }}
-              rows={Math.min(5, Math.max(1, text.split("\n").length))}
-              placeholder={canReply ? "Tulis balasan… (Enter kirim, Shift+Enter baris baru)" : "Tidak bisa membalas chat ini"}
-              disabled={!canReply || sending}
-              className="input max-h-40 min-h-11 resize-none"
-              aria-label="Tulis balasan"
-            />
-            <button className="btn-primary h-11 w-11 shrink-0 px-0!" onClick={send} disabled={!canReply || sending || !text.trim()} aria-label="Kirim">
-              {sending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <SendHorizonal className="h-4 w-4" />}
-            </button>
-          </div>
+          <Composer chatId={chatId} canReply={canReply} disabledHint="Tidak bisa membalas chat ini" customerName={chat?.name ?? null} isGroup={!!chat?.isGroup} onSend={send} />
         </div>
       )}
     </div>

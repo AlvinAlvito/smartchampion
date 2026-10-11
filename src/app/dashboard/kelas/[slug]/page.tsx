@@ -30,6 +30,7 @@ import { ClassTutors } from "@/components/class-tutors";
 import { SessionProgress } from "@/components/session-progress";
 import { safeWaGroupUrl } from "@/lib/wa-group";
 import { visibleMaterialWhere } from "@/lib/material-access";
+import { visibleSessionWhere } from "@/lib/session-access";
 import { WhatsAppIcon } from "@/components/whatsapp-icon";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,8 @@ export default async function KelasSayaPage({ params }: PageProps<"/dashboard/ke
   const product = await prisma.product.findUnique({
     where: { slug },
     include: {
-      sessions: { orderBy: [{ startAt: "asc" }, { id: "asc" }], include: { _count: { select: { worksheetQuestions: true } } } },
+      // jadwal khusus (VIP per peserta) hanya tampil untuk peserta yang dicentang admin
+      sessions: { where: visibleSessionWhere(session.userId), orderBy: [{ startAt: "asc" }, { id: "asc" }], include: { _count: { select: { worksheetQuestions: true } } } },
       materials: { where: visibleMaterialWhere(session.userId), orderBy: { createdAt: "desc" } },
     },
   });

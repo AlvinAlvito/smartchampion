@@ -26,7 +26,13 @@ export type TutorRow = {
   classNames: string[];
 };
 
-export type ClassOption = { id: number; name: string; jenjang: string; status: string };
+export type ClassOption = { id: number; name: string; jenjang: string; status: string; type?: string };
+
+/** label jenis produk non-COC → badge & kata kunci pencarian (nama kelas VIP tidak selalu memuat kata "VIP") */
+const TYPE_TAG: Record<string, { label: string; cls: string; words: string }> = {
+  PRIVATE: { label: "VIP", cls: "bg-amber-400 text-navy-950", words: "vip privat private" },
+  OTHER: { label: "Lainnya", cls: "bg-sky-100 text-sky-800", words: "lainnya" },
+};
 
 const JENJANG_LABEL: Record<string, string> = { SD: "SD", SMP: "SMP", SMA: "SMA", UMUM: "Umum" };
 const STATUS_NOTE: Record<string, string> = { DRAFT: "draft", CLOSED: "ditutup" };
@@ -35,7 +41,8 @@ const STATUS_NOTE: Record<string, string> = { DRAFT: "draft", CLOSED: "ditutup" 
 function ClassPicker({ classes, initial }: { classes: ClassOption[]; initial: number[] }) {
   const [picked, setPicked] = useState<Set<number>>(new Set(initial));
   const [q, setQ] = useState("");
-  const shown = classes.filter((c) => !q || c.name.toLowerCase().includes(q.toLowerCase()));
+  const needle = q.trim().toLowerCase();
+  const shown = classes.filter((c) => !needle || `${c.name} ${TYPE_TAG[c.type ?? ""]?.words ?? ""}`.toLowerCase().includes(needle));
   const groups = [...new Set(shown.map((c) => c.jenjang))];
   const toggle = (ids: number[], on: boolean) =>
     setPicked((prev) => {
@@ -53,7 +60,7 @@ function ClassPicker({ classes, initial }: { classes: ClassOption[]; initial: nu
         </p>
         <div className="relative ml-auto w-full sm:w-56">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-navy-300" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari kelas…" className="input py-1.5! pl-8 text-sm" aria-label="Cari kelas" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari kelas… (ketik vip)" className="input py-1.5! pl-8 text-sm" aria-label="Cari kelas" />
         </div>
       </div>
       {/* nilai yang dikirim ke server */}
@@ -96,6 +103,11 @@ function ClassPicker({ classes, initial }: { classes: ClassOption[]; initial: nu
                         <input type="checkbox" checked={on} onChange={() => toggle([c.id], !on)} className="mt-0.5 h-4 w-4 shrink-0 accent-brand-600" />
                         <span className="min-w-0">
                           <span className="font-semibold">{c.name}</span>
+                          {TYPE_TAG[c.type ?? ""] && (
+                            <span className={cn("ml-1.5 inline-block rounded-md px-1.5 py-0.5 align-middle text-[10px] font-extrabold", TYPE_TAG[c.type!].cls)}>
+                              {TYPE_TAG[c.type!].label}
+                            </span>
+                          )}
                           {STATUS_NOTE[c.status] && <span className="ml-1 text-xs text-navy-400">({STATUS_NOTE[c.status]})</span>}
                         </span>
                       </label>

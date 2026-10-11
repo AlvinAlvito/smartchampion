@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { FileDown, ArrowLeft, CalendarClock, CircleCheck, CircleX, FileQuestion, Lightbulb, Lock, Trophy } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+import { visibleSessionWhere } from "@/lib/session-access";
 import { cn, formatDate } from "@/lib/utils";
 import { GRADE_SCALE, LETTERS, gradeTone, worksheetOpen } from "@/lib/worksheet-shared";
 import { Badge } from "@/components/ui";
@@ -25,7 +26,7 @@ export default async function WorksheetPage({ params }: PageProps<"/dashboard/ke
   const { slug, sid } = await params;
   const me = await requireUser(["PESERTA"]);
   const s = await prisma.classSession.findFirst({
-    where: { id: Number(sid) || 0, product: { slug } },
+    where: { id: Number(sid) || 0, product: { slug }, ...visibleSessionWhere(me.userId) },
     include: { product: { select: { id: true, name: true, slug: true } }, worksheetQuestions: { orderBy: [{ order: "asc" }, { id: "asc" }] } },
   });
   if (!s) notFound();
@@ -34,7 +35,8 @@ export default async function WorksheetPage({ params }: PageProps<"/dashboard/ke
   const [attempt, number] = await Promise.all([
     prisma.worksheetAttempt.findUnique({ where: { sessionId_userId: { sessionId: s.id, userId: me.userId } } }),
     prisma.classSession
-      .count({ where: { productId: s.productId, OR: [{ startAt: { lt: s.startAt } }, { startAt: s.startAt, id: { lt: s.id } }] } })
+      // nomor urut mengikuti pertemuan yang terlihat oleh peserta ini
+      .count({ where: { productId: s.productId, AND: [visibleSessionWhere(me.userId), { OR: [{ startAt: { lt: s.startAt } }, { startAt: s.startAt, id: { lt: s.id } }] }] } })
       .then((n) => n + 1),
   ]);
   const open = worksheetOpen(s);

@@ -56,6 +56,17 @@ export function formatWaPhone(phone: string | null | undefined) {
 
 export const WA_MAX_TEXT = 4096;
 
+/* ---------- Kategori customer (dari Master Lead, dicocokkan lewat nomor WA) ---------- */
+
+export type WaCustomerTag = "BUKAN" | "CALON" | "BARU" | "LAMA";
+export const WA_TAG_LABEL: Record<WaCustomerTag, string> = { BUKAN: "Bukan leads", CALON: "Calon customer", BARU: "Customer baru", LAMA: "Customer lama" };
+export const WA_TAG_CLASS: Record<WaCustomerTag, string> = {
+  BUKAN: "bg-navy-100 text-navy-500",
+  CALON: "bg-amber-100 text-amber-800",
+  BARU: "bg-emerald-100 text-emerald-800",
+  LAMA: "bg-violet-100 text-violet-800",
+};
+
 /* ---------- Auto-balas AI ---------- */
 
 /** Penanda di setiap balasan AI (terkirim ke customer) */

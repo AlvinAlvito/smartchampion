@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, CalendarDays, CircleCheck, Clock, PlayCircle, Video } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+import { visibleSessionWhere } from "@/lib/session-access";
 import { cn, safeUrl } from "@/lib/utils";
 import { EmptyState, PageTitle } from "@/components/ui";
 import { subjectVisual } from "@/components/product-card";
@@ -23,7 +24,7 @@ export default async function JadwalPage({ searchParams }: PageProps<"/dashboard
   const productIds = paid.map((r) => r.productId).filter((id): id is number => id !== null);
   const now = new Date();
   const sessions = await prisma.classSession.findMany({
-    where: { productId: { in: productIds }, ...(showPast ? { endAt: { lt: now } } : { endAt: { gte: now } }) },
+    where: { productId: { in: productIds }, ...visibleSessionWhere(session.userId), ...(showPast ? { endAt: { lt: now } } : { endAt: { gte: now } }) },
     include: { product: { select: { name: true, slug: true, bidang: true } } },
     orderBy: { startAt: showPast ? "desc" : "asc" },
     take: 60,

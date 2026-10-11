@@ -29,7 +29,8 @@ export default async function MeetingAdminPage({ params, searchParams }: PagePro
   const s = await prisma.classSession.findFirst({
     where: { id: Number(sid) || 0, productId: Number(id) || 0 },
     include: {
-      product: { select: { id: true, name: true, bidang: true, jenjang: true, worksheetPdfBg: true, worksheetPdfConfig: true } },
+      product: { select: { id: true, name: true, bidang: true, jenjang: true, type: true, worksheetPdfBg: true, worksheetPdfConfig: true } },
+      viewers: { select: { userId: true } },
       worksheetQuestions: { orderBy: [{ order: "asc" }, { id: "asc" }] },
       worksheetAttempts: true,
       attendances: { include: { markedBy: { select: { name: true } } } },
@@ -47,7 +48,14 @@ export default async function MeetingAdminPage({ params, searchParams }: PagePro
     }),
   ]);
   // satu baris per akun peserta (VIP bisa punya beberapa paket lunas)
-  const people = [...new Map(regs.map((r) => [r.userId, r])).values()];
+  const everyone = [...new Map(regs.map((r) => [r.userId, r])).values()];
+  // jadwal khusus (VIP per peserta): absensi, nilai & worksheet hanya untuk peserta yang dicentang
+  const viewerIds = s.viewers.map((v) => v.userId);
+  const people = s.restricted ? everyone.filter((p) => p.userId != null && viewerIds.includes(p.userId)) : everyone;
+  const audience =
+    s.product.type === "PRIVATE"
+      ? everyone.filter((p) => p.userId != null).map((p) => ({ userId: p.userId as number, name: p.fullName, school: p.school ?? "" }))
+      : undefined;
   const questions: WsQuestion[] = s.worksheetQuestions.map((q) => ({
     id: q.id,
     text: q.text,
@@ -104,7 +112,7 @@ export default async function MeetingAdminPage({ params, searchParams }: PagePro
             </p>
             {s.notes && <MathText as="p" text={s.notes} className="mt-2 max-w-2xl text-sm text-navy-200" />}
           </div>
-          <EditMeetingButton productId={s.productId} number={number} meeting={s} />
+          <EditMeetingButton productId={s.productId} number={number} meeting={{ ...s, viewerIds }} participants={audience} />
         </div>
       </section>
 

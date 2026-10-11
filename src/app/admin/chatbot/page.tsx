@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bot, BookOpenText, CircleHelp, Database, FlaskConical, History, MessageSquareText, UserRound } from "lucide-react";
+import { Bot, BookOpenText, BrainCircuit, CircleHelp, Database, FlaskConical, History, MessageSquareText, UserRound } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requirePanel } from "@/lib/session";
 import { buildLiveContext } from "@/lib/chatbot";
@@ -9,6 +9,7 @@ import { cn, formatDate } from "@/lib/utils";
 import { EmptyState, PageTitle, StatCard } from "@/components/ui";
 import { ChatPanel } from "@/components/chatbot/chat-panel";
 import { AddFromQuestionButton, KnowledgeManager, ResolveButton } from "./knowledge-admin";
+import { AdminBotsTab } from "./admin-bots";
 
 export const metadata = { title: "Chatbot AI" };
 export const dynamic = "force-dynamic";
@@ -18,12 +19,13 @@ const TABS = [
   { v: "belum-terjawab", l: "Belum terjawab", icon: CircleHelp },
   { v: "riwayat", l: "Riwayat chat", icon: History },
   { v: "uji", l: "Uji chatbot", icon: FlaskConical },
+  { v: "admin", l: "Chatbot Admin", icon: BrainCircuit },
 ] as const;
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
 
 export default async function ChatbotAdminPage({ searchParams }: PageProps<"/admin/chatbot">) {
-  await requirePanel();
+  const session = await requirePanel();
   const sp = await searchParams;
   const tab = TABS.find((t) => t.v === sp.tab)?.v ?? "pengetahuan";
   const weekAgo = daysAgo(7);
@@ -70,6 +72,7 @@ export default async function ChatbotAdminPage({ searchParams }: PageProps<"/adm
       {tab === "pengetahuan" && <KnowledgeTab rows={knowledge} />}
       {tab === "belum-terjawab" && <UnansweredTab />}
       {tab === "riwayat" && <HistoryTab />}
+      {tab === "admin" && <AdminBotsTab session={session} botParam={typeof sp.bot === "string" ? sp.bot : undefined} />}
       {tab === "uji" && (
         <div className="grid gap-5 lg:grid-cols-[420px_1fr]">
           <ChatPanel storageKey={null} page="admin-uji" className="h-[640px]" />

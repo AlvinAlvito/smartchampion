@@ -51,16 +51,36 @@ export type WsQuestion = {
   points: number;
   explanation: string | null;
 };
-type MeetingInfo = { id: number; title: string; startAt: Date; endAt: Date; meetingUrl: string | null; recordingUrl: string | null; notes: string | null };
+type MeetingInfo = {
+  id: number;
+  title: string;
+  startAt: Date;
+  endAt: Date;
+  meetingUrl: string | null;
+  recordingUrl: string | null;
+  notes: string | null;
+  restricted?: boolean;
+  viewerIds?: number[];
+};
 
-export function EditMeetingButton({ productId, meeting, number }: { productId: number; meeting: MeetingInfo; number: number }) {
+export function EditMeetingButton({
+  productId,
+  meeting,
+  number,
+  participants,
+}: {
+  productId: number;
+  meeting: MeetingInfo;
+  number: number;
+  participants?: { userId: number; name: string; school: string }[];
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button className="btn-light" onClick={() => setOpen(true)}>
         <Pencil className="h-4 w-4" /> Edit pertemuan
       </button>
-      {open && <MeetingDialog productId={productId} meeting={meeting} nextNumber={number} onClose={() => setOpen(false)} />}
+      {open && <MeetingDialog productId={productId} meeting={meeting} nextNumber={number} participants={participants} onClose={() => setOpen(false)} />}
     </>
   );
 }

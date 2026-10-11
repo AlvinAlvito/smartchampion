@@ -33,7 +33,18 @@ const TYPES = [
   { v: "VIDEO", l: "Video", icon: Video, grad: "from-sky-400 to-navy-600" },
 ] as const;
 
-function AudiencePicker({ participants, material, errors }: { participants: MaterialAudience[]; material: MaterialRow | null; errors?: string[] }) {
+/** Pilihan "semua peserta / peserta tertentu" + daftar centang — dipakai materi & jadwal pertemuan kelas VIP */
+export function AudiencePicker({
+  participants,
+  material,
+  errors,
+  question = "Siapa yang bisa melihat materi ini?",
+}: {
+  participants: MaterialAudience[];
+  material: { restricted?: boolean; viewerIds?: number[] } | null;
+  errors?: string[];
+  question?: string;
+}) {
   const [mode, setMode] = useState<"ALL" | "SELECTED">(material?.restricted ? "SELECTED" : "ALL");
   const [picked, setPicked] = useState<Set<number>>(() => new Set(material?.viewerIds ?? []));
   const [q, setQ] = useState("");
@@ -50,7 +61,7 @@ function AudiencePicker({ participants, material, errors }: { participants: Mate
     <div className="space-y-3 rounded-3xl bg-amber-50/60 p-4 ring-1 ring-amber-100">
       <div>
         <span className="label flex items-center gap-1.5">
-          <Lock className="h-3.5 w-3.5 text-amber-600" /> Siapa yang bisa melihat materi ini?
+          <Lock className="h-3.5 w-3.5 text-amber-600" /> {question}
         </span>
         <div className="grid gap-2 sm:grid-cols-2">
           {[

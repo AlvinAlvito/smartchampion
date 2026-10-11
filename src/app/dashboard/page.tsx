@@ -12,6 +12,7 @@ import { TutorAvatar } from "@/components/tutor-avatar";
 import { SessionProgress } from "@/components/session-progress";
 import { safeWaGroupUrl } from "@/lib/wa-group";
 import { visibleMaterialWhere } from "@/lib/material-access";
+import { visibleSessionWhere } from "@/lib/session-access";
 import { WhatsAppIcon } from "@/components/whatsapp-icon";
 
 export const metadata = { title: "Dashboard Peserta" };
@@ -47,7 +48,7 @@ export default async function DashboardPage() {
   const [counts, upcoming, scores, playCount] = await Promise.all([
     paidCountByProduct(paidProductIds),
     prisma.classSession.findMany({
-      where: { productId: { in: paidProductIds }, endAt: { gte: new Date() } },
+      where: { productId: { in: paidProductIds }, endAt: { gte: new Date() }, ...visibleSessionWhere(session.userId) },
       include: { product: { select: { name: true } } },
       orderBy: { startAt: "asc" },
       take: 4,

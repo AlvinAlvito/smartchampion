@@ -2,6 +2,8 @@ import "server-only";
 import { after } from "next/server";
 import { prisma } from "./prisma";
 import { askWaChatbot } from "./chatbot";
+import { cloneFor } from "./admin-bot";
+import { leadForChat } from "./wa-leads";
 import { groqConfigured } from "./groq";
 import { abs } from "./seo";
 import { WA_AI_APOLOGY, WA_AI_FOOTER, WA_AI_MEDIA, WA_AI_UNKNOWN, WA_MAX_TEXT, waPreview } from "./wa-shared";
@@ -69,7 +71,7 @@ export async function onIncomingForAutoReply(chatId: number, messageId: number, 
 }
 
 /** Markdown chatbot situs → format WhatsApp */
-function toWhatsApp(text: string) {
+export function toWhatsApp(text: string) {
   return text
     .replace(/\*\*(.+?)\*\*/g, "*$1*")
     .replace(/\[([^\]]+)\]\((\/[^)\s]*)\)/g, (_m, t: string, p: string) => `${t}: ${abs(p)}`)
@@ -78,7 +80,7 @@ function toWhatsApp(text: string) {
     .trim();
 }
 
-const stripFooter = (t: string) => t.replace(WA_AI_FOOTER, "").trim();
+export const stripFooter = (t: string) => t.replace(WA_AI_FOOTER, "").trim();
 
 async function runAutoReply(chatId: number, messageId: number) {
   await sleep(DEBOUNCE_MS); // pesan beruntun → jawab sekali, setelah customer selesai mengetik
@@ -126,7 +128,10 @@ async function runAutoReply(chatId: number, messageId: number) {
 
     let bot;
     try {
-      bot = await askWaChatbot(history, chat.name ?? undefined);
+      // klon AI admin (gaya + ingatan dari chat-chatnya) bila sudah pernah dianalisis; nama customer dari Master Lead bila ada
+      const lastQuestions = history.filter((m) => m.role === "user").slice(-3).map((m) => m.content).join(" ");
+      const [clone, lead] = await Promise.all([cloneFor(chat.accountId, lastQuestions), leadForChat(chat)]);
+      bot = await askWaChatbot(history, lead?.nama ?? chat.name ?? undefined, clone);
     } catch (e) {
       console.error("[wa-ai] AI gagal:", (e as Error).message);
       return; // tidak membalas; admin tetap melihat chat belum terjawab

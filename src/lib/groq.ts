@@ -83,6 +83,8 @@ export async function groqJson<T>(messages: Message[], schemaName: string, schem
       }
       if (last.status === 429) cooldown.set(model, Date.now() + Math.max(5, last.retryAfter || 30) * 1000);
       else if (last.status >= 500 || last.status === 404 || last.body?.error?.code === "model_not_found") cooldown.set(model, Date.now() + 60_000);
+      // permintaan melebihi kuota token model ini (413) → model lain mungkin masih muat
+      else if (last.status === 413) continue;
       // model gagal menyusun JSON sesuai schema (acak, bukan salah permintaan) → coba model berikutnya
       else if (last.status === 400 && /json_validate_failed|failed to generate json/i.test(`${last.body?.error?.code ?? ""} ${last.body?.error?.message ?? ""}`)) continue;
       else break; // 400/401 dsb. → tidak ada gunanya mencoba model lain
@@ -97,5 +99,6 @@ export async function groqJson<T>(messages: Message[], schemaName: string, schem
   if (last?.status === 401) throw new GroqError("API key Groq tidak valid atau sudah dicabut.");
   if (!last || last.status === 429) throw new GroqError("Kuota/limit Groq sedang penuh. Tunggu sebentar lalu coba lagi.");
   if (last.ok) throw new GroqError("Jawaban AI tidak bisa dibaca. Coba lagi.");
+  if (last.status === 413) throw new GroqError("Kuota AI per menit sedang penuh untuk permintaan sebesar ini. Tunggu ±1 menit lalu coba lagi.");
   throw new GroqError(`Layanan AI menolak permintaan (${last.status}). Coba lagi.`);
 }

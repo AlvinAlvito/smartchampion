@@ -37,7 +37,7 @@ export default async function KelasDetailPage({ params }: PageProps<"/kelas/[slu
   const product = await prisma.product.findUnique({
     where: { slug },
     include: {
-      sessions: { orderBy: { startAt: "asc" }, take: 6 },
+      sessions: { where: { restricted: false }, orderBy: { startAt: "asc" }, take: 6 },
       packages: { where: { isActive: true }, orderBy: { sessions: "asc" }, select: { id: true, sessions: true, price: true, label: true } },
       // mading & galeri opsional: bagian hanya tampil bila ada isinya
       posts: { where: { isPublished: true }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }], select: { id: true, title: true, category: true, body: true, imageUrl: true } },

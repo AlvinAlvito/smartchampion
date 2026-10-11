@@ -6,6 +6,7 @@ import { JENJANG_LABEL, PRODUCT_STATUS_LABEL } from "./constants";
 import { formatDate, formatRupiah } from "./utils";
 import { ADMIN_CONTACTS, BOT_NAME } from "./chatbot-config";
 import { quotaVisible } from "./quota";
+import type { CloneContext } from "./admin-bot";
 
 /**
  * Otak chatbot: AI HANYA boleh menjawab dari (1) basis pengetahuan yang dikelola admin
@@ -209,7 +210,8 @@ GAYA BALASAN WHATSAPP (menggantikan aturan gaya bahasa di atas)
 FORMAT & KEAKURATAN
 - Format WhatsApp: tebal pakai *satu bintang*, daftar pakai "- ", baris baru biasa. JANGAN pakai markdown [teks](link), **dua bintang**, atau menulis "\\n" sebagai teks.
 - Tautan ditulis lengkap: https://pelatihan.posi.my.id/kelas (bukan /kelas).
-- Jangan menyuruh menghubungi nomor WhatsApp admin lain — customer sudah chat dengan admin; bila perlu bantuan manusia cukup set handoff=true.
+- JANGAN PERNAH menulis nomor WhatsApp admin atau menyuruh menghubungi admin/nomor lain — customer SUDAH chat dengan admin; bila perlu bantuan manusia cukup set handoff=true.
+- Sapaan / pembuka tanpa pertanyaan jelas (mis. "halo kak", "permisi", "mau tanya", "p") → balas ramah lalu tanyakan apa yang bisa dibantu (mis. "Halo Kak 😊 Boleh banget, mau tanya soal apa nih?"). Itu answered=true, handoff=false, sources kosong.
 - Tulis nama kelas, harga, tanggal, dan jadwal PERSIS seperti di DATA (jangan diubah, ditambah kata, atau dibulatkan).
 - sources = 1–4 kutipan PERSIS (salin apa adanya, pendek) dari DATA yang menjadi dasar setiap fakta di jawaban. Setiap angka (harga, tanggal, jam, kuota) di jawaban harus ada di kutipan. Untuk sapaan/terima kasih tanpa fakta, sources boleh kosong.
 - frustrated=true bila customer terlihat kesal/kecewa/marah/komplain, mengulang pertanyaan yang sama karena jawabanmu tidak membantu, menyatakan jawabanmu salah/ngawur, atau meminta bicara dengan manusia.
@@ -239,8 +241,16 @@ export function verifyGrounding(reply: string, sources: string[], data: string):
       .map((s) => s.trim())
       .filter((s) => s.length >= 3);
     const found = segs.filter((s) => hay.includes(s));
-    if (!exact && found.length < Math.max(1, Math.ceil(segs.length * 0.6))) return { ok: false, why: `kutipan tidak ada di data: "${q.slice(0, 60)}"` };
-    numbersOf(q).forEach((n) => quoteNums.add(n));
+    let loose: string | null = null;
+    if (!exact && found.length < Math.max(1, Math.ceil(segs.length * 0.6))) {
+      // AI memparafrase kutipan → terima bila ≥ 75% katanya ada di SATU baris DATA (baris itu yang dipakai sebagai sumber angka)
+      const qw = [...new Set(q.match(/[\p{L}\p{N}]{3,}/gu) ?? [])];
+      if (qw.length >= 4) loose = lines.find((l) => qw.filter((w) => l.includes(w)).length >= Math.ceil(qw.length * 0.75)) ?? null;
+      if (!loose) return { ok: false, why: `kutipan tidak ada di data: "${q.slice(0, 60)}"` };
+    }
+    // kutipan longgar: angka diambil dari baris DATA-nya, bukan dari kutipan (yang bisa keliru)
+    if (loose) numbersOf(loose).forEach((n) => quoteNums.add(n));
+    else numbersOf(q).forEach((n) => quoteNums.add(n));
     const anchors = exact ? [q] : found.filter((s) => s.length >= 8);
     for (const l of lines) if (anchors.some((a) => l.includes(a))) numbersOf(l).forEach((n) => quoteNums.add(n));
   }
@@ -252,25 +262,82 @@ export function verifyGrounding(reply: string, sources: string[], data: string):
   return { ok: true };
 }
 
-/** Balasan otomatis Chat WA dari basis pengetahuan & data sistem yang sama dengan chatbot situs */
-export async function askWaChatbot(history: { role: "user" | "assistant"; content: string }[], customerName?: string): Promise<WaBotReply> {
+/** Mode "Saran AI": draf ditulis untuk dikirim admin sendiri (bukan balasan otomatis) */
+const DRAFT_RULES = `
+
+MODE DRAF UNTUK ADMIN (mengalahkan aturan "arahkan ke admin")
+- Kamu menulis DRAF balasan yang akan diperiksa lalu dikirim oleh admin itu sendiri. Kamu ADALAH adminnya — JANGAN pernah menyuruh customer "menghubungi/bertanya ke admin" atau menyebut "admin akan membantu".
+- Baca seluruh percakapan, pahami apa yang sebenarnya ditanyakan/dibutuhkan customer di pesan-pesan terakhirnya, lalu jawab itu.
+- Bila jawabannya ada di DATA → tulis jawaban lengkapnya (answered=true).
+- Bila TIDAK ada di DATA (mis. status akun/pembayaran pribadi customer) → tetap tulis draf yang wajar dikirim admin: tanggapi dengan empati, katakan akan dicek dulu, dan/atau minta data yang diperlukan (nama peserta, email, bukti bayar). Jangan mengarang fakta. Set answered=false.
+- Jangan menulis keterangan untuk admin di dalam "reply" — isi "reply" hanya teks pesan untuk customer.`;
+
+/** Aturan tambahan bila admin punya "klon AI": balas dengan gaya admin itu + boleh memakai ingatannya */
+function cloneRules(c: CloneContext) {
+  const p = c.persona;
+  const LATE = /baru (me)?respon|baru (mem)?balas|telat (mem)?balas|slow ?resp|lama (mem)?balas/i;
+  const list = (a: string[] | undefined, n: number) =>
+    (a ?? [])
+      .filter((x) => !LATE.test(x))
+      .slice(0, n)
+      .map((x) => `  • ${x}`)
+      .join("\n");
+  return `
+
+TIRU GAYA ADMIN "${c.adminName}" — INI YANG PALING DIUTAMAKAN UNTUK GAYA (mengalahkan aturan gaya & contoh nada di atas, termasuk soal singkatan/emoji)
+- Kamu membalas SEBAGAI ${c.adminName}. Customer harus merasa sedang dibalas ${c.adminName} sendiri. ${p.ringkasan}
+- Sapaan ke customer: ${p.sapaan}. Sebutan diri: ${p.sebutanDiri}. Nada: ${(p.nada ?? []).join(", ")}.
+- Emoji: ${p.emoji}
+- Pola pembuka khasnya:
+${list(p.pembuka, 5)}
+- Pola penutup khasnya:
+${list(p.penutup, 5)}
+- Kebiasaan menulis:
+${list(p.kebiasaan, 8)}
+- Contoh kalimat ASLI ${c.adminName} (tiru irama, pilihan kata & panjangnya; jangan disalin mentah bila tidak cocok):
+${list(p.contoh, 10)}
+- Variasikan kalimat — jangan selalu memakai pembuka/penutup yang sama.
+- Kamu membalas SEKETIKA: JANGAN meminta maaf karena "baru merespon / telat membalas / slow respon" walaupun itu kebiasaan ${c.adminName}.
+- "{nama}" di contoh = nama customer; ganti dengan nama customer bila diketahui, kalau tidak hapus.
+
+SUMBER JAWABAN TAMBAHAN
+- Bagian "DATA: INGATAN DARI CHAT ADMIN" berisi informasi & contoh jawaban yang pernah diberikan ${c.adminName}. Itu termasuk DATA yang boleh dipakai & dikutip di "sources".
+- Bila INGATAN bertentangan dengan "DATA: OTOMATIS DARI SISTEM" (harga, jadwal, status kelas, kuota) → pakai data sistem (lebih baru).
+- Info bertanggal lama tentang jadwal/tanggal/promo bisa sudah kedaluwarsa; bila tidak ada konfirmasi di data sistem dan kamu ragu → answered=false.
+- Aturan KEJUJURAN & FORMAT tetap berlaku penuh.`;
+}
+
+/**
+ * Balasan otomatis Chat WA dari basis pengetahuan & data sistem yang sama dengan chatbot situs.
+ * `clone` (opsional) = klon AI admin pemilik nomor: gaya bahasa + ingatan dari chat-chatnya.
+ */
+export async function askWaChatbot(
+  history: { role: "user" | "assistant"; content: string }[],
+  customerName?: string,
+  clone?: CloneContext | null,
+  opts: { draftForAdmin?: boolean } = {},
+): Promise<WaBotReply> {
   const query = history
     .filter((m) => m.role === "user")
     .slice(-3)
     .map((m) => m.content)
     .join(" ");
   const [knowledge, live] = await Promise.all([buildKnowledgeContext(query), buildLiveContext()]);
-  const sys = systemPrompt(knowledge, live, undefined, WA_RULES).replace(
-    "Pengguna belum login.",
-    customerName ? `Customer WhatsApp bernama "${customerName}" (belum tentu terdaftar di situs).` : "Customer menghubungi lewat WhatsApp.",
-  );
+  const memory = clone?.memory ?? "";
+  const sys =
+    systemPrompt(knowledge, live, undefined, WA_RULES + (clone ? cloneRules(clone) : "")).replace(
+      "Pengguna belum login.",
+      customerName ? `Customer WhatsApp bernama "${customerName}" (belum tentu terdaftar di situs).` : "Customer menghubungi lewat WhatsApp.",
+    ) +
+    (opts.draftForAdmin ? DRAFT_RULES : "") +
+    (clone ? `\n\n=== DATA: INGATAN DARI CHAT ADMIN ${clone.adminName} ===\n${memory || "(belum ada)"}` : "");
   type Out = { reply: string; answered: boolean; handoff: boolean; frustrated: boolean; sources: string[] };
   const ask = (temperature: number) =>
     groqJson<Out>([{ role: "system", content: sys }, ...history], "balasan_wa", WA_SCHEMA, { temperature, reasoningEffort: "medium", maxTokens: 1500, timeoutMs: 40_000 });
   let r: Out;
   try {
     // sedikit variasi agar bahasanya natural; fakta tetap dijaga verifyGrounding
-    r = await ask(0.35);
+    r = await ask(clone ? 0.5 : 0.35);
   } catch (e) {
     if (!/menolak permintaan \(400\)|tidak bisa dibaca/.test((e as Error).message)) throw e;
     r = await ask(0); // keluaran JSON rusak → ulang sekali dengan suhu 0
@@ -280,6 +347,6 @@ export async function askWaChatbot(history: { role: "user" | "assistant"; conten
     .replace(/\\n/g, "\n")
     .trim();
   const answered = Boolean(r.answered) && !!reply;
-  const check = answered ? verifyGrounding(reply, Array.isArray(r.sources) ? r.sources : [], `${knowledge}\n${live}`) : { ok: true };
+  const check = answered ? verifyGrounding(reply, Array.isArray(r.sources) ? r.sources : [], `${knowledge}\n${live}\n${memory}`) : { ok: true };
   return { reply, answered, handoff: Boolean(r.handoff), frustrated: Boolean(r.frustrated), grounded: check.ok, why: check.why };
 }

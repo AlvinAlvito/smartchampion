@@ -13,6 +13,7 @@ import { GroqError, groqConfigured } from "@/lib/groq";
 import { AI_MAX_QUESTIONS, DIFFICULTIES, generateQuestions, type Difficulty, type GeneratedQuestion } from "@/lib/ai-questions";
 import { ATTENDANCE_STATUS, canSelfCheckIn, gradeOf, worksheetOpen } from "@/lib/worksheet-shared";
 import { logActivity } from "@/lib/activity";
+import { visibleSessionWhere } from "@/lib/session-access";
 
 /* ------------------------------------------------------------------ */
 /* helper                                                              */
@@ -35,6 +36,8 @@ function revalidateMeeting(productId: number, sessionId?: number, slug?: string)
 }
 
 const isPaid = (userId: number, productId: number) => prisma.registration.count({ where: { userId, productId, status: "PAID" } }).then((n) => n > 0);
+/** jadwal khusus (VIP per peserta): hanya peserta yang dicentang yang boleh absen / mengerjakan worksheet */
+const mayJoin = (userId: number, sessionId: number) => prisma.classSession.count({ where: { id: sessionId, ...visibleSessionWhere(userId) } }).then((n) => n > 0);
 
 /* ------------------------------------------------------------------ */
 /* Admin: pertemuan                                                    */
@@ -299,7 +302,9 @@ export async function markAllPresentAction(sessionId: number): Promise<ActionRes
     prisma.attendance.findMany({ where: { sessionId: s.id }, select: { userId: true } }),
   ]);
   const done = new Set(marked.map((m) => m.userId));
-  const todo = regs.filter((r) => !done.has(r.userId));
+  // jadwal khusus → hanya peserta yang dicentang
+  const viewers = s.restricted ? new Set((await prisma.sessionViewer.findMany({ where: { sessionId: s.id }, select: { userId: true } })).map((v) => v.userId)) : null;
+  const todo = regs.filter((r) => !done.has(r.userId) && (!viewers || (r.userId != null && viewers.has(r.userId))));
   if (!todo.length) return { ok: "Semua peserta sudah diabsen." };
   await prisma.attendance.createMany({
     data: todo.map((r) => ({ sessionId: s.id, userId: r.userId, status: "HADIR", method: "ADMIN", markedById: admin.userId })),
@@ -320,7 +325,7 @@ export async function selfCheckInAction(sessionId: number): Promise<ActionResult
   const limited = await limitAction("checkin", me.userId, 20, 10 * 60_000);
   if (limited) return { error: limited };
   const s = await sessionWithProduct(Number(sessionId) || 0);
-  if (!s || !(await isPaid(me.userId, s.productId))) return { error: "Pertemuan tidak ditemukan." };
+  if (!s || !(await isPaid(me.userId, s.productId)) || !(await mayJoin(me.userId, s.id))) return { error: "Pertemuan tidak ditemukan." };
   if (!canSelfCheckIn(s)) return { error: "Absen hanya bisa dilakukan saat pertemuan sedang berlangsung." };
   const existing = await prisma.attendance.findUnique({ where: { sessionId_userId: { sessionId: s.id, userId: me.userId } } });
   if (existing) return { ok: existing.status === "HADIR" ? "Kamu sudah tercatat hadir." : "Absensimu sudah dicatat admin." };
@@ -341,7 +346,7 @@ export async function submitWorksheetAction(
     where: { id: Number(sessionId) || 0 },
     include: { product: { select: { slug: true } }, worksheetQuestions: { select: { id: true, answerIndex: true, points: true, options: true } } },
   });
-  if (!s || !(await isPaid(me.userId, s.productId))) return { error: "Worksheet tidak ditemukan." };
+  if (!s || !(await isPaid(me.userId, s.productId)) || !(await mayJoin(me.userId, s.id))) return { error: "Worksheet tidak ditemukan." };
   if (!s.worksheetPublished || !s.worksheetQuestions.length) return { error: "Worksheet belum dibuka." };
   if (!worksheetOpen(s)) return { error: "Batas waktu pengumpulan worksheet sudah lewat." };
   if (await prisma.worksheetAttempt.count({ where: { sessionId: s.id, userId: me.userId } })) return { error: "Worksheet ini sudah kamu kumpulkan." };

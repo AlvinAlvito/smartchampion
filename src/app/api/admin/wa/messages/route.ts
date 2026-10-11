@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { json, resolveChat } from "@/lib/wa";
 import { guardRoute } from "@/lib/security";
+import { leadForChat } from "@/lib/wa-leads";
 
 export const dynamic = "force-dynamic";
 
@@ -42,10 +43,13 @@ export async function GET(request: Request) {
     select: { id: true, status: true, error: true },
     take: 100,
   });
+  const lead = await leadForChat(chat);
   return json({
     chat: {
       id: chat.id,
-      name: chat.name,
+      name: lead?.nama ?? chat.name,
+      waName: lead && chat.name && chat.name !== lead.nama ? chat.name : null,
+      tag: chat.isGroup ? null : (lead?.tag ?? "BUKAN"),
       phone: chat.phone,
       isGroup: chat.isGroup,
       hasIncoming: chat.hasIncoming,

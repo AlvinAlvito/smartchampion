@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   Copy,
   FileQuestion,
+  Lock,
   Pencil,
   Plus,
   Save,
@@ -25,6 +26,7 @@ import { meetingPhase } from "@/lib/worksheet-shared";
 import { ConfirmButton, Modal } from "@/components/modal";
 import { SubmitButton, useFormAction } from "@/components/form-buttons";
 import { Badge, Field } from "@/components/ui";
+import { AudiencePicker, type MaterialAudience } from "./panels";
 
 export type MeetingRow = {
   id: number;
@@ -38,6 +40,9 @@ export type MeetingRow = {
   questions: number;
   attempts: number;
   present: number;
+  /** jadwal khusus peserta tertentu (kelas VIP) */
+  restricted?: boolean;
+  viewerIds?: number[];
 };
 
 /** Tambah / edit satu pertemuan (jadwal, link Zoom, link rekaman, catatan) */
@@ -47,11 +52,14 @@ export function MeetingDialog({
   onClose,
   nextNumber,
   copy = false,
+  participants,
 }: {
   productId: number;
-  meeting: Pick<MeetingRow, "id" | "title" | "startAt" | "endAt" | "meetingUrl" | "recordingUrl" | "notes"> | null;
+  meeting: Pick<MeetingRow, "id" | "title" | "startAt" | "endAt" | "meetingUrl" | "recordingUrl" | "notes" | "restricted" | "viewerIds"> | null;
   onClose: () => void;
   nextNumber: number;
+  /** peserta lunas kelas VIP → tampilkan pilihan "jadwal untuk siapa" */
+  participants?: MaterialAudience[];
   /** true = form terisi salinan pertemuan lain, disimpan sebagai pertemuan BARU */
   copy?: boolean;
 }) {
@@ -106,6 +114,11 @@ export function MeetingDialog({
         <Field label="Catatan / materi pertemuan" htmlFor="notes" className="sm:col-span-2" hint="Juga dipakai AI sebagai konteks saat membuat soal worksheet.">
           <textarea id="notes" name="notes" rows={3} defaultValue={s?.notes ?? ""} className="input" />
         </Field>
+        {participants && (
+          <div className="sm:col-span-2">
+            <AudiencePicker participants={participants} material={s} errors={fe?.viewerIds} question="Jadwal ini untuk siapa?" />
+          </div>
+        )}
       </form>
     </Modal>
   );
@@ -155,7 +168,21 @@ function BulkDialog({ productId, nextNumber, onClose }: { productId: number; nex
 
 const PHASE = { upcoming: { l: "Akan datang", tone: "blue" }, live: { l: "Berlangsung", tone: "green" }, done: { l: "Selesai", tone: "gray" } } as const;
 
-export function MeetingsPanel({ productId, meetings, paidCount, now }: { productId: number; meetings: MeetingRow[]; paidCount: number; now: number }) {
+export function MeetingsPanel({
+  productId,
+  meetings,
+  paidCount,
+  now,
+  participants,
+}: {
+  productId: number;
+  meetings: MeetingRow[];
+  paidCount: number;
+  now: number;
+  /** hanya kelas VIP Privat: daftar peserta lunas untuk jadwal per peserta */
+  participants?: MaterialAudience[];
+}) {
+  const nameOf = (id: number) => participants?.find((p) => p.userId === id)?.name;
   const [dialog, setDialog] = useState<{ open: boolean; meeting: MeetingRow | null; copy?: boolean }>({ open: false, meeting: null });
   const [bulk, setBulk] = useState(false);
   /** Salinan pertemuan → diletakkan setelah pertemuan terakhir: nomor berikutnya, jadwal +7 hari, durasi sama */
@@ -196,6 +223,8 @@ export function MeetingsPanel({ productId, meetings, paidCount, now }: { product
         <ol className="space-y-2">
           {meetings.map((m, i) => {
             const phase = meetingPhase(m, now);
+            // jadwal khusus: hitungan "x/y" memakai jumlah peserta yang dicentang
+            const audience = m.restricted ? (m.viewerIds?.length ?? 0) : paidCount;
             return (
               <li
                 key={m.id}
@@ -218,6 +247,12 @@ export function MeetingsPanel({ productId, meetings, paidCount, now }: { product
                     {m.title} <ChevronRight className="h-4 w-4 shrink-0 opacity-0 transition group-hover:opacity-100" />
                   </p>
                   <p className="text-xs text-navy-400">{formatDate(m.startAt, true)} WIB</p>
+                  {m.restricted && (
+                    <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] font-semibold text-amber-700">
+                      <Lock className="h-3 w-3 shrink-0" /> Khusus {m.viewerIds?.length ?? 0} peserta
+                      {participants && <span className="truncate font-normal">: {(m.viewerIds ?? []).map((id) => nameOf(id) ?? "peserta lain").join(", ")}</span>}
+                    </p>
+                  )}
                   <div className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] font-semibold">
                     <Badge tone={PHASE[phase].tone}>{PHASE[phase].l}</Badge>
                     <span
@@ -240,10 +275,10 @@ export function MeetingsPanel({ productId, meetings, paidCount, now }: { product
                       )}
                     >
                       <FileQuestion className="h-3 w-3" />
-                      {m.questions ? `${m.questions} soal · ${m.worksheetPublished ? `${m.attempts}/${paidCount} mengerjakan` : "draf"}` : "Worksheet kosong"}
+                      {m.questions ? `${m.questions} soal · ${m.worksheetPublished ? `${m.attempts}/${audience} mengerjakan` : "draf"}` : "Worksheet kosong"}
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-full bg-navy-50 px-2 py-0.5 text-navy-600">
-                      <ClipboardCheck className="h-3 w-3" /> Hadir {m.present}/{paidCount}
+                      <ClipboardCheck className="h-3 w-3" /> Hadir {m.present}/{audience}
                     </span>
                   </div>
                 </Link>
@@ -279,6 +314,7 @@ export function MeetingsPanel({ productId, meetings, paidCount, now }: { product
           productId={productId}
           meeting={dialog.meeting}
           copy={dialog.copy}
+          participants={participants}
           nextNumber={meetings.length + 1}
           onClose={() => setDialog({ open: false, meeting: null })}
         />

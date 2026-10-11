@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { canChat, canMonitor, json, resolveAccount } from "@/lib/wa";
 import { guardRoute } from "@/lib/security";
+import { leadsByPhone, phonesOfLeadsNamed } from "@/lib/wa-leads";
+import { normPhone } from "@/lib/identity";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +19,8 @@ export async function GET(request: Request) {
   if (!account) return json({ chats: [], unreadTotal: 0 });
   const q = (sp.get("q") ?? "").trim().slice(0, 60);
   const digits = q.replace(/\D/g, "");
+  // nama di daftar memakai nama Master Lead → pencarian juga harus menemukan nama itu
+  const leadPhones = q ? await phonesOfLeadsNamed(q) : [];
   const where: Prisma.WaChatWhereInput = {
     accountId: account.id,
     lastMessageAt: { not: null },
@@ -28,6 +32,7 @@ export async function GET(request: Request) {
             { name: { contains: q } },
             ...(digits.length >= 3 ? [{ phone: { contains: digits.startsWith("0") ? "62" + digits.slice(1) : digits } }] : []),
             { lastMessageText: { contains: q } },
+            ...(leadPhones.length ? [{ phone: { in: leadPhones } }] : []),
           ],
         }
       : {}),
@@ -41,5 +46,11 @@ export async function GET(request: Request) {
     }),
     prisma.waChat.aggregate({ where: { accountId: account.id }, _sum: { unread: true } }),
   ]);
-  return json({ chats, unreadTotal: unreadTotal._sum.unread ?? 0 });
+  const leads = await leadsByPhone();
+  const tagged = chats.map((c) => {
+    const lead = c.isGroup ? undefined : leads.get(normPhone(c.phone) ?? "");
+    // nama Master Lead menggantikan nama bawaan WA; nama WA tetap dikirim sebagai keterangan
+    return { ...c, name: lead?.nama ?? c.name, waName: lead && c.name && c.name !== lead.nama ? c.name : null, tag: c.isGroup ? null : (lead?.tag ?? "BUKAN") };
+  });
+  return json({ chats: tagged, unreadTotal: unreadTotal._sum.unread ?? 0 });
 }

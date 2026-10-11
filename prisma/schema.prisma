@@ -88,6 +88,8 @@ model User {
   scores               GameScore[]
   materials            Material[]
   materialViews        MaterialViewer[]
+  sessionViews         SessionViewer[]
+  waTemplates          WaTemplate[]
   /// Nomor WhatsApp yang ditautkan admin untuk menu Chat WA (satu nomor per admin)
   waAccount            WaAccount?
   waMessagesSent       WaMessage[]
@@ -271,9 +273,12 @@ model ClassSession {
   worksheetPublished Boolean   @default(false)
   /// batas pengumpulan (kosong = tanpa batas)
   worksheetDueAt     DateTime?
+  /// true = jadwal khusus: hanya peserta di session_viewers yang melihat & mengikutinya (kelas VIP Privat)
+  restricted         Boolean   @default(false)
   createdAt          DateTime  @default(now())
 
   product            Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  viewers            SessionViewer[]
   worksheetQuestions WorksheetQuestion[]
   worksheetAttempts  WorksheetAttempt[]
   attendances        Attendance[]
@@ -584,8 +589,9 @@ model WaAccount {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  user  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   chats WaChat[]
+  bot   AdminBot?
 
   @@map("wa_accounts")
 }
@@ -611,6 +617,9 @@ model WaChat {
   aiNote          String?   @db.VarChar(160)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  /// id pesan terakhir di chat ini yang sudah dipelajari "klon AI" admin (lihat AdminBot)
+  aiAnalyzedMsgId Int @default(0)
 
   account  WaAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   messages WaMessage[]
@@ -1147,4 +1156,83 @@ model GuideStep {
 
   @@index([guideId, sortOrder])
   @@map("guide_steps")
+}
+
+/// Template balasan cepat Chat WA (ketik "/pintasan" di kolom chat). Milik satu admin; isShared = bisa dipakai admin lain.
+model WaTemplate {
+  id        Int      @id @default(autoincrement())
+  ownerId   Int
+  /// pintasan tanpa garis miring, mis. "coc" → diketik "/coc"
+  shortcut  String   @db.VarChar(40)
+  title     String   @db.VarChar(120)
+  /// isi pesan; {nama} = nama depan customer, {admin} = nama admin
+  body      String   @db.Text
+  isShared  Boolean  @default(false)
+  useCount  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, shortcut])
+  @@map("wa_templates")
+}
+
+/// "Klon AI" seorang admin: hasil mempelajari seluruh chat WA-nya (gaya bahasa + ingatan tanya-jawab & info)
+model AdminBot {
+  id             Int       @id @default(autoincrement())
+  accountId      Int       @unique
+  /// profil gaya bahasa hasil rangkuman AI (lihat lib/admin-bot.ts → Persona)
+  persona        Json?
+  /// catatan gaya mentah dari tiap batch analisis (bahan rangkuman persona)
+  styleNotes     String?   @db.Text
+  /// dipakai untuk auto-balas & saran jawaban
+  enabled        Boolean   @default(true)
+  lastAnalyzedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  account  WaAccount        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  memories AdminBotMemory[]
+
+  @@map("admin_bots")
+}
+
+/// Ingatan klon AI: QA = pertanyaan customer + jawaban admin; FACT = informasi yang disampaikan admin
+model AdminBotMemory {
+  id             Int      @id @default(autoincrement())
+  botId          Int
+  kind           String   @db.VarChar(8)
+  /// kategori pertanyaan (QA) / topik (FACT)
+  category       String   @db.VarChar(80)
+  question       String?  @db.Text
+  /// jawaban admin (QA) / isi informasi (FACT)
+  answer         String   @db.Text
+  /// kategori jawaban admin (mis. "Menjelaskan harga", "Mengarahkan daftar")
+  answerCategory String?  @db.VarChar(80)
+  /// berapa kali pola serupa muncul
+  hits           Int      @default(1)
+  sourceChatId   Int?
+  /// tanggal pesan sumbernya (info lebih baru lebih dipercaya)
+  learnedAt      DateTime
+  createdAt      DateTime @default(now())
+
+  bot AdminBot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@index([botId, kind, category])
+  @@map("admin_bot_memories")
+}
+
+/// Peserta yang mendapat jadwal pertemuan ber-restricted (jadwal VIP per peserta)
+model SessionViewer {
+  sessionId Int
+  userId    Int
+  createdAt DateTime @default(now())
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, userId])
+  @@index([userId])
+  @@map("session_viewers")
 }

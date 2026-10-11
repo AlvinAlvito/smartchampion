@@ -31,7 +31,7 @@ export default async function TutorAdminPage({ searchParams }: PageProps<"/admin
     prisma.tutor.count({ where }),
     prisma.tutor.count(),
     prisma.tutor.count({ where: { isPublished: true } }),
-    prisma.product.findMany({ orderBy: [{ jenjang: "asc" }, { name: "asc" }], select: { id: true, name: true, jenjang: true, status: true } }),
+    prisma.product.findMany({ orderBy: [{ jenjang: "asc" }, { name: "asc" }], select: { id: true, name: true, jenjang: true, status: true, type: true } }),
   ]);
   const tutors = rows.map(({ classes: c, ...t }) => ({ ...t, classIds: c.map((x) => x.id), classNames: c.map((x) => x.name) }));
   return (
@@ -74,6 +74,7 @@ export default async function TutorAdminPage({ searchParams }: PageProps<"/admin
           {classes.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
+              {c.type === "PRIVATE" ? " (VIP Privat)" : c.type === "OTHER" ? " (Lainnya)" : ""}
             </option>
           ))}
         </select>

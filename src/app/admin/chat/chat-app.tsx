@@ -22,7 +22,8 @@ import {
 import { Badge, EmptyState } from "@/components/ui";
 import { ConfirmDialog } from "@/components/modal";
 import { cn } from "@/lib/utils";
-import { WA_STATUS_LABEL, WA_STATUS_TONE, formatWaPhone } from "@/lib/wa-shared";
+import { WA_STATUS_LABEL, WA_STATUS_TONE, WA_TAG_CLASS, WA_TAG_LABEL, type WaCustomerTag, formatWaPhone } from "@/lib/wa-shared";
+import { BotCard } from "./bot-card";
 import { ConnectPanel } from "./connect-panel";
 import { Conversation } from "./conversation";
 import { CustomerPanel } from "./customer-panel";
@@ -61,6 +62,10 @@ type Conn = {
 type ChatItem = {
   id: number;
   name: string | null;
+  /** nama bawaan WhatsApp bila nama diganti nama Master Lead */
+  waName?: string | null;
+  /** kategori customer dari Master Lead */
+  tag?: WaCustomerTag | null;
   phone: string | null;
   isGroup?: boolean;
   lastMessageAt: string;
@@ -281,6 +286,9 @@ export function ChatApp({
         </div>
       )}
 
+      {/* Klon AI: analisis seluruh chat admin ini */}
+      {hasAccount && <BotCard accountId={accountId} readOnly={readOnly} autoReply={autoReply} />}
+
       {/* Chat */}
       {hasAccount && (
         <div
@@ -407,11 +415,18 @@ export function ChatApp({
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center justify-between gap-2">
                           <span className="flex min-w-0 items-center gap-1.5">
-                            <span className="truncate text-sm font-bold text-navy-900">{c.name || formatWaPhone(c.phone) || (c.isGroup ? "Grup WhatsApp" : "Tanpa nama")}</span>
+                            <span className="truncate text-sm font-bold text-navy-900" title={c.waName ? `Nama WA: ${c.waName}` : undefined}>
+                              {c.name || formatWaPhone(c.phone) || (c.isGroup ? "Grup WhatsApp" : "Tanpa nama")}
+                            </span>
                             {c.isGroup && <span className="shrink-0 rounded bg-sky-100 px-1 text-[10px] font-bold text-sky-700">Grup</span>}
                           </span>
                           <span className={cn("shrink-0 text-[11px]", c.unread ? "font-bold text-emerald-600" : "text-navy-400")}>{when(c.lastMessageAt)}</span>
                         </span>
+                        {c.tag && (
+                          <span className="my-0.5 block">
+                            <span className={cn("inline-block rounded-full px-1.5 py-px text-[10px] font-bold leading-4", WA_TAG_CLASS[c.tag])}>{WA_TAG_LABEL[c.tag]}</span>
+                          </span>
+                        )}
                         <span className="flex items-center justify-between gap-2">
                           <span className="truncate text-xs text-navy-500">
                             {c.lastFromMe && <span className="text-navy-400">Anda: </span>}
@@ -498,8 +513,9 @@ export function ChatApp({
         message={
           <span className="block space-y-2 text-left">
             <span className="block">
-              Chat masuk yang baru akan dijawab otomatis oleh AI (otak yang sama dengan chatbot situs: basis pengetahuan + data kelas dari sistem). Setiap
-              balasan diberi keterangan bahwa pesan dijawab otomatis oleh AI.
+              Chat masuk yang baru akan dijawab otomatis oleh AI (basis pengetahuan + data kelas dari sistem). Bila Anda sudah menjalankan{" "}
+              <b>Analisis chat</b>, AI membalas dengan <b>gaya bahasa & pengetahuan dari chat Anda sendiri</b>. Setiap balasan diberi keterangan bahwa pesan
+              dijawab otomatis oleh AI.
             </span>
             <span className="block">
               Bila AI tidak tahu jawabannya atau customer terlihat kesal, AI membalas &ldquo;admin akan menjawab sebentar lagi&rdquo; lalu{" "}

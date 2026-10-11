@@ -73,7 +73,10 @@ export default async function ProductDetailPage({ params }: PageProps<"/admin/pr
     include: {
       sessions: {
         orderBy: { startAt: "asc" },
-        include: { _count: { select: { worksheetQuestions: true, worksheetAttempts: true, attendances: { where: { status: "HADIR" } } } } },
+        include: {
+          _count: { select: { worksheetQuestions: true, worksheetAttempts: true, attendances: { where: { status: "HADIR" } } } },
+          viewers: { select: { userId: true } },
+        },
       },
       materials: { orderBy: { createdAt: "desc" }, include: { author: { select: { name: true } }, viewers: { select: { userId: true } } } },
       registrations: {
@@ -179,8 +182,10 @@ export default async function ProductDetailPage({ params }: PageProps<"/admin/pr
             productId={product.id}
             paidCount={new Set(registrations.map((r) => r.userId)).size}
             now={new Date().getTime()}
-            meetings={sessions.map(({ _count, ...s }) => ({
+            participants={vip ? audienceOf(registrations) : undefined}
+            meetings={sessions.map(({ _count, viewers, ...s }) => ({
               ...s,
+              viewerIds: viewers.map((v) => v.userId),
               questions: _count.worksheetQuestions,
               attempts: _count.worksheetAttempts,
               present: _count.attendances,

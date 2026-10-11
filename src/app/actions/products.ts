@@ -200,12 +200,31 @@ export async function saveSessionAction(_prev: ActionResult | undefined, form: F
   if (!productId) return { error: "Kelas tidak valid." };
   if (Object.keys(fe).length) return { fieldErrors: fe };
 
-  const data = { productId, title, startAt: startAt!, endAt: endAt!, meetingUrl, recordingUrl, notes: optStr(form, "notes") };
-  const saved = id ? await prisma.classSession.update({ where: { id }, data }) : await prisma.classSession.create({ data });
+  // VIP Privat: jadwal bisa dikhususkan untuk peserta tertentu (yang dicentang)
+  const product = await prisma.product.findUnique({ where: { id: productId }, select: { type: true } });
+  if (!product) return { error: "Kelas tidak ditemukan." };
+  const restricted = product.type === "PRIVATE" && str(form, "audience") === "SELECTED";
+  let viewerIds: number[] = [];
+  if (restricted) {
+    const picked = new Set(form.getAll("viewerIds").map((v) => Number(v)).filter((n) => Number.isInteger(n) && n > 0));
+    // hanya peserta lunas di kelas ini yang sah dicentang
+    const paid = await prisma.registration.findMany({ where: { productId, status: "PAID", userId: { in: [...picked] } }, select: { userId: true }, distinct: ["userId"] });
+    viewerIds = paid.map((r) => r.userId).filter((u): u is number => u != null);
+    if (!viewerIds.length) return { fieldErrors: { viewerIds: ["Centang minimal 1 peserta untuk jadwal ini"] } };
+  }
+
+  const data = { productId, title, startAt: startAt!, endAt: endAt!, meetingUrl, recordingUrl, notes: optStr(form, "notes"), restricted };
+  const saved = await prisma.$transaction(async (tx) => {
+    const row = id ? await tx.classSession.update({ where: { id }, data }) : await tx.classSession.create({ data });
+    await tx.sessionViewer.deleteMany({ where: { sessionId: row.id } });
+    if (viewerIds.length) await tx.sessionViewer.createMany({ data: viewerIds.map((userId) => ({ sessionId: row.id, userId })) });
+    return row;
+  });
   await logActivity({ entity: "SESSION", action: id ? "UPDATE" : "CREATE", entityId: saved.id, productId, label: title });
   revalidateProduct(productId);
   revalidatePath(`/admin/produk/${productId}/pertemuan`, "layout");
-  return { ok: id ? "Pertemuan diperbarui." : "Pertemuan ditambahkan." };
+  const who = restricted ? ` (khusus ${viewerIds.length} peserta)` : "";
+  return { ok: id ? `Pertemuan diperbarui${who}.` : `Pertemuan ditambahkan${who}.` };
 }
 
 export async function deleteSessionAction(id: number): Promise<ActionResult> {
