@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { paidCountByProduct } from "@/lib/queries";
 import { REG_STATUS_LABEL } from "@/lib/constants";
-import { formatDate, formatRupiah, safeUrl } from "@/lib/utils";
+import { cn, formatDate, formatMeetingTime, formatRupiah, safeUrl } from "@/lib/utils";
 import { Badge, EmptyState, QuotaBar, SectionTitle, StatCard, statusTone } from "@/components/ui";
 import { subjectVisual } from "@/components/product-card";
 import { MimpimuCard } from "@/components/mimpimu-card";
@@ -45,8 +45,18 @@ export default async function DashboardPage() {
   const pending = placedRegs.filter((r) => r.status === "PENDING");
   const paidProductIds = paid.map((r) => r.productId);
 
-  const [counts, upcoming, scores, playCount] = await Promise.all([
+  // VIP Privat: jadwal diatur per peserta → kartu kelas menampilkan pertemuan milik peserta ini, bukan "info jadwal" kelasnya
+  const now = new Date();
+  const vipProductIds = paid.filter((r) => r.product.type === "PRIVATE").map((r) => r.productId);
+  const [counts, vipSessions, upcoming, scores, playCount] = await Promise.all([
     paidCountByProduct(paidProductIds),
+    vipProductIds.length
+      ? prisma.classSession.findMany({
+          where: { productId: { in: vipProductIds }, ...visibleSessionWhere(session.userId) },
+          select: { id: true, productId: true, title: true, startAt: true, endAt: true },
+          orderBy: [{ startAt: "asc" }, { id: "asc" }],
+        })
+      : [],
     prisma.classSession.findMany({
       where: { productId: { in: paidProductIds }, endAt: { gte: new Date() }, ...visibleSessionWhere(session.userId) },
       include: { product: { select: { name: true } } },
@@ -129,6 +139,9 @@ export default async function DashboardPage() {
                 const ready = vip || filled >= r.product.minQuota;
                 const vipDone = vip && r.sessionsDone >= (r.sessionsBought ?? 0);
                 const { icon: Icon, gradient } = subjectVisual(r.product.bidang);
+                const mine = vip ? vipSessions.filter((s) => s.productId === r.productId) : [];
+                // pertemuan berikutnya (atau yang sedang berlangsung) disorot
+                const nextId = mine.find((s) => s.endAt >= now)?.id;
                 return (
                   <div key={r.id} className="card card-hover">
                     <div className="flex flex-wrap items-start gap-4">
@@ -159,10 +172,45 @@ export default async function DashboardPage() {
                             </span>
                           </p>
                         )}
-                        {r.product.scheduleInfo && (
-                          <p className="mt-2 flex items-center gap-1.5 text-sm text-navy-600">
-                            <CalendarClock className="h-4 w-4 text-brand-500" /> {r.product.scheduleInfo}
-                          </p>
+                        {vip ? (
+                          mine.length ? (
+                            <ul className="mt-2 space-y-1.5" aria-label="Jadwal pertemuanmu">
+                              {mine.map((s) => {
+                                const past = s.endAt < now;
+                                return (
+                                  <li key={s.id}>
+                                    <Link
+                                      href={`/dashboard/kelas/${r.product.slug}/pertemuan/${s.id}`}
+                                      className={cn(
+                                        "flex items-start gap-1.5 rounded-xl px-2 py-1 text-sm transition hover:bg-brand-50",
+                                        past ? "text-navy-400" : "text-navy-600",
+                                        s.id === nextId && "bg-amber-50 ring-1 ring-amber-200",
+                                      )}
+                                    >
+                                      {past ? <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> : <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />}
+                                      <span className="min-w-0">
+                                        <b className={past ? "font-semibold" : "text-navy-800"}>{s.title}</b>
+                                        <span className="block text-xs sm:inline sm:text-sm">
+                                          <span className="hidden sm:inline"> · </span>
+                                          {formatMeetingTime(s.startAt, s.endAt)}
+                                        </span>
+                                      </span>
+                                    </Link>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          ) : (
+                            <p className="mt-2 flex items-center gap-1.5 text-sm text-navy-400">
+                              <CalendarClock className="h-4 w-4 shrink-0" /> Jadwal pertemuanmu belum diatur — admin akan mengaturnya.
+                            </p>
+                          )
+                        ) : (
+                          r.product.scheduleInfo && (
+                            <p className="mt-2 flex items-center gap-1.5 text-sm text-navy-600">
+                              <CalendarClock className="h-4 w-4 text-brand-500" /> {r.product.scheduleInfo}
+                            </p>
+                          )
                         )}
                       </div>
                     </div>

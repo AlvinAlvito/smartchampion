@@ -5,6 +5,7 @@ import { requirePanel } from "@/lib/session";
 import { paidCountByProduct } from "@/lib/queries";
 import { JENJANG_LABEL, PRODUCT_STATUS_LABEL, PRODUCT_TYPE_LABEL } from "@/lib/constants";
 import { formatRupiah } from "@/lib/utils";
+import { EarlyBirdAdminTag } from "@/components/early-bird";
 import { Badge, EmptyState, PageTitle, statusTone } from "@/components/ui";
 import { subjectVisual } from "@/components/product-card";
 import { ProductDialogButton } from "./product-form";
@@ -160,6 +161,7 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
                     <p className="mt-0.5 text-xs text-navy-400">
                       {JENJANG_LABEL[p.jenjang]} · {formatRupiah(p.price)}/{p.priceUnit}
                     </p>
+                    <EarlyBirdAdminTag product={p} className="mt-1" />
                     <ClassPeriod first={spanOf(p.id)?._min.startAt ?? null} last={spanOf(p.id)?._max.endAt ?? null} startDate={p.startDate} />
                   </div>
                   <ChevronRight className="h-5 w-5 shrink-0 text-navy-200 transition group-hover:translate-x-1 group-hover:text-brand-600" />

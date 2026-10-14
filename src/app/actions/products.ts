@@ -48,6 +48,15 @@ export async function saveProductAction(_prev: ActionResult | undefined, form: F
   if (!STATUS.includes(status)) fe.status = ["Pilih status"];
   if (!str(form, "shortDesc")) fe.shortDesc = ["Deskripsi singkat wajib diisi"];
   if (other && (!sessionCount || sessionCount < 1 || sessionCount > 100)) fe.sessionCount = ["Isi jumlah pertemuan 1–100"];
+  // Early bird (bukan untuk VIP Privat): harga promo + rentang tanggal; harga normal tampil dicoret selama periode itu
+  const earlyPrice = vip ? null : optInt(form, "earlyPrice");
+  const earlyStart = earlyPrice != null ? parseWibDate(form.get("earlyStart")) : null;
+  const earlyEnd = earlyPrice != null ? parseWibDate(form.get("earlyEnd")) : null;
+  if (earlyPrice != null) {
+    if (earlyPrice <= 0 || (price != null && earlyPrice >= price)) fe.earlyPrice = ["Harga early bird harus lebih kecil dari harga normal"];
+    if (!earlyEnd) fe.earlyEnd = ["Isi tanggal berakhir early bird"];
+    else if (earlyStart && earlyStart > earlyEnd) fe.earlyEnd = ["Tanggal berakhir harus setelah tanggal mulai"];
+  }
   const waGroup = parseWaGroupUrl(str(form, "waGroupUrl"));
   if (waGroup.error) fe.waGroupUrl = [waGroup.error];
   if (Object.keys(fe).length) return { fieldErrors: fe };
@@ -67,6 +76,9 @@ export async function saveProductAction(_prev: ActionResult | undefined, form: F
     description: str(form, "description") || str(form, "shortDesc"),
     type,
     price: price!,
+    earlyPrice,
+    earlyStart,
+    earlyEnd,
     // VIP Privat: harga selalu per pertemuan & tanpa kuota minimal
     // Lainnya: harga sekali bayar untuk seluruh pertemuan, tanpa kuota minimal (kapasitas opsional)
     priceUnit: vip ? "pertemuan" : str(form, "priceUnit") || (other ? "paket" : "bulan"),

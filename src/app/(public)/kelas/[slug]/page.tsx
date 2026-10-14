@@ -6,6 +6,8 @@ import { paidCountByProduct } from "@/lib/queries";
 import { getSession } from "@/lib/session";
 import { JENJANG_LABEL, PRODUCT_STATUS_LABEL } from "@/lib/constants";
 import { formatDate, formatRupiah } from "@/lib/utils";
+import { EarlyBirdNote } from "@/components/early-bird";
+import { currentPrice } from "@/lib/pricing";
 import { QuotaBar } from "@/components/ui";
 import { subjectVisual } from "@/components/product-card";
 import { ClassTutors } from "@/components/class-tutors";
@@ -27,7 +29,7 @@ export async function generateMetadata({ params }: PageProps<"/kelas/[slug]">) {
   const vip = p.type === "PRIVATE";
   return pageMeta({
     title: `${p.name} — ${vip ? "Les Privat" : "Kelas"} Olimpiade Online ${JENJANG_LABEL[p.jenjang] ?? ""}`.trim(),
-    description: `${p.shortDesc} Mulai ${formatRupiah(p.price)}/${p.priceUnit}. ${vip ? "Belajar 1-on-1 bersama tutor, jadwal fleksibel." : "Kelas grup online bersama tutor medalis."} Daftar online di Pelatihan POSI.`,
+    description: `${p.shortDesc} Mulai ${formatRupiah(currentPrice(p))}/${p.priceUnit}. ${vip ? "Belajar 1-on-1 bersama tutor, jadwal fleksibel." : "Kelas grup online bersama tutor medalis."} Daftar online di Pelatihan POSI.`,
     path: `/kelas/${slug}`,
   });
 }
@@ -77,7 +79,7 @@ export default async function KelasDetailPage({ params }: PageProps<"/kelas/[slu
       {
         "@type": "Offer",
         category: "Paid",
-        price: product.price,
+        price: currentPrice(product),
         priceCurrency: "IDR",
         availability: canRegister ? "https://schema.org/InStock" : "https://schema.org/SoldOut",
         url: abs(`/kelas/${product.slug}`),
@@ -254,7 +256,8 @@ export default async function KelasDetailPage({ params }: PageProps<"/kelas/[slu
           <div className="card overflow-hidden p-0!">
             <div className="bg-linear-to-br from-brand-50 to-white p-6">
               <p className="text-xs font-bold uppercase tracking-wider text-navy-400">Biaya kelas</p>
-              <p className="mt-1 text-4xl font-extrabold tracking-tight text-navy-900">{formatRupiah(product.price)}</p>
+              <EarlyBirdNote product={product} className="mt-1" />
+              <p className="mt-1 text-4xl font-extrabold tracking-tight text-navy-900">{formatRupiah(currentPrice(product))}</p>
               <p className="text-sm text-navy-400">
                 per {product.priceUnit}
                 {other ? ` · ${product.sessionCount ?? 1}x pertemuan` : ""}

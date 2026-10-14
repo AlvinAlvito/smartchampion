@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePanel } from "@/lib/session";
 import { JENJANG_LABEL, PRODUCT_STATUS_LABEL } from "@/lib/constants";
 import { cn, formatDate, formatRupiah } from "@/lib/utils";
+import { EarlyBirdAdminTag } from "@/components/early-bird";
 import { Badge, QuotaBar, statusTone } from "@/components/ui";
 import { subjectVisual } from "@/components/product-card";
 import { ProductDialogButton } from "../product-form";
@@ -124,6 +125,7 @@ export default async function ProductDetailPage({ params }: PageProps<"/admin/pr
                 <span className="flex items-center gap-1.5">
                   <Wallet className="h-4 w-4" /> {formatRupiah(product.price)}/{product.priceUnit}
                 </span>
+                <EarlyBirdAdminTag product={product} />
                 {sessions.length > 0 ? (
                   <span className="flex items-center gap-1.5" title="Pertemuan pertama – pertemuan terakhir">
                     <CalendarDays className="h-4 w-4" /> {formatDate(sessions[0].startAt)} – {formatDate(sessions[sessions.length - 1].endAt)}

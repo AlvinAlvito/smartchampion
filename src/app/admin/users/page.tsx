@@ -3,7 +3,7 @@ import type { Prisma, Role } from "@prisma/client";
 import { Filter, RotateCcw, Search, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requirePanel } from "@/lib/session";
-import { ROLE_LABEL } from "@/lib/constants";
+import { IMPERSONATOR_ROLES, ROLE_LABEL } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { PageTitle } from "@/components/ui";
 import { Pagination, readPage } from "@/components/pagination";
@@ -74,7 +74,7 @@ export default async function UsersPage({ searchParams }: PageProps<"/admin/user
         title="Pengguna"
         subtitle={
           pesertaOnly
-            ? "Kelola akun peserta: data, email login, password, dan status aktif. Akun tim/admin tidak ditampilkan di sini."
+            ? "Kelola akun peserta: data, email login, password, status aktif, dan masuk sebagai peserta untuk melihat tampilannya. Akun tim/admin tidak ditampilkan di sini."
             : "Kelola akun root, superadmin (lihat saja), admin pelatihan, admin SmartChampion, dan peserta."
         }
       />
@@ -136,7 +136,7 @@ export default async function UsersPage({ searchParams }: PageProps<"/admin/user
       )}
       <UsersTable
         meId={session.userId}
-        canImpersonate={session.role === "ROOT" || session.role === "ADMIN"}
+        canImpersonate={IMPERSONATOR_ROLES.includes(session.role)}
         pesertaOnly={pesertaOnly}
         users={users.map((u) => ({
           id: u.id,

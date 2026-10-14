@@ -15,6 +15,13 @@ export function formatDate(value: Date | string | null | undefined, withTime = f
   }).format(d);
 }
 
+/** Waktu satu pertemuan: "Senin, 20 Des 2026 · 16.00–17.30 WIB" */
+export function formatMeetingTime(start: Date, end?: Date | null) {
+  const day = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(start);
+  const hm = (d: Date) => new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Jakarta" }).format(d).replace(":", ".");
+  return `${day} · ${hm(start)}${end ? `–${hm(end)}` : ""} WIB`;
+}
+
 /** yyyy-mm-dd untuk <input type="date"> */
 export function toDateInput(value: Date | null | undefined) {
   if (!value) return "";

@@ -21,6 +21,9 @@ export type ProductValues = {
   shortDesc: string;
   description: string;
   price: number;
+  earlyPrice?: number | null;
+  earlyStart?: Date | null;
+  earlyEnd?: Date | null;
   priceUnit: string;
   minQuota: number;
   maxQuota: number | null;
@@ -145,6 +148,26 @@ export function ProductDialog({ product, onClose }: { product: ProductValues | n
             <Field label="Per" htmlFor="priceUnit">
               <input id="priceUnit" name="priceUnit" defaultValue={v?.type === "PRIVATE" || v?.type === "OTHER" ? "bulan" : (v?.priceUnit ?? "bulan")} className="input" />
             </Field>
+          </div>
+        )}
+        {!vip && (
+          <div className="rounded-2xl bg-rose-50/60 p-4 ring-1 ring-rose-100 sm:col-span-2">
+            <p className="text-sm font-bold text-navy-800">Early bird (opsional)</p>
+            <p className="mt-0.5 text-xs text-navy-500">
+              Selama rentang tanggal ini peserta membayar harga early bird, dan harga normal di atas tampil <s>dicoret</s> di katalog. Di luar rentang itu
+              otomatis kembali ke harga normal. Kosongkan harga untuk menonaktifkan.
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <Field label="Harga early bird (Rp)" htmlFor="earlyPrice" errors={fe?.earlyPrice}>
+                <input id="earlyPrice" name="earlyPrice" type="number" min={1} defaultValue={v?.type !== "PRIVATE" ? (v?.earlyPrice ?? "") : ""} className="input" placeholder="mis. 249000" />
+              </Field>
+              <Field label="Mulai" htmlFor="earlyStart" hint="Kosong = langsung berlaku">
+                <input id="earlyStart" name="earlyStart" type="date" defaultValue={toDateInput(v?.earlyStart)} className="input" />
+              </Field>
+              <Field label="Berakhir" htmlFor="earlyEnd" errors={fe?.earlyEnd} hint="Berlaku sampai akhir hari ini (WIB)">
+                <input id="earlyEnd" name="earlyEnd" type="date" defaultValue={toDateInput(v?.earlyEnd)} className="input" />
+              </Field>
+            </div>
           </div>
         )}
         {other ? (

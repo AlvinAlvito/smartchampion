@@ -56,6 +56,9 @@ export const REG_STATUS_LABEL: Record<string, string> = {
   CANCELLED: "Dibatalkan",
 };
 
+/** Role yang boleh "masuk sebagai" akun lain: Root (admin & peserta), Admin & Admin SmartChampion (peserta saja) */
+export const IMPERSONATOR_ROLES: readonly string[] = ["ROOT", "ADMIN", "SMARTCHAMPION"];
+
 export const ROLE_LABEL: Record<string, string> = {
   ROOT: "Root",
   SUPERADMIN: "Superadmin (lihat saja)",

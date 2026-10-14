@@ -20,7 +20,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { paidCountByProduct } from "@/lib/queries";
-import { cn, formatDate, safeUrl } from "@/lib/utils";
+import { cn, formatDate, formatMeetingTime, safeUrl } from "@/lib/utils";
 import { ATTENDANCE_LABEL, ATTENDANCE_TONE, average, gradeOf, gradeTone, meetingPhase, worksheetOpen } from "@/lib/worksheet-shared";
 import { MathText } from "@/components/math-text";
 import { CheckInButton } from "./check-in-button";
@@ -60,6 +60,8 @@ export default async function KelasSayaPage({ params }: PageProps<"/dashboard/ke
   const waGroup = safeWaGroupUrl(product.waGroupUrl);
   // VIP Privat bisa beli paket berkali-kali: jumlahkan seluruh paket lunas
   const vip = product.type === "PRIVATE";
+  const now = new Date();
+  const nextMeeting = vip ? product.sessions.find((s) => s.endAt >= now) : undefined;
   const vipBought = regs.reduce((s, r) => s + (r.sessionsBought ?? 0), 0);
   const vipDone = regs.reduce((s, r) => s + r.sessionsDone, 0);
 
@@ -97,11 +99,18 @@ export default async function KelasSayaPage({ params }: PageProps<"/dashboard/ke
           <h1 className="text-2xl font-extrabold tracking-tight text-navy-900 sm:text-3xl">{product.name}</h1>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-navy-400">
             <span className="font-mono">{reg.code}</span>
-            {product.scheduleInfo && (
-              <span className="flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" /> {product.scheduleInfo}
-              </span>
-            )}
+            {/* VIP Privat: jadwal per peserta → tampilkan pertemuan berikutnya milik peserta ini, bukan info jadwal kelas */}
+            {vip
+              ? nextMeeting && (
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" /> {nextMeeting.title} · {formatMeetingTime(nextMeeting.startAt, nextMeeting.endAt)}
+                  </span>
+                )
+              : product.scheduleInfo && (
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" /> {product.scheduleInfo}
+                  </span>
+                )}
           </p>
         </div>
       </div>

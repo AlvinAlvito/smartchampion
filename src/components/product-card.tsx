@@ -4,6 +4,8 @@ import { JENJANG_LABEL } from "@/lib/constants";
 import { formatRupiah } from "@/lib/utils";
 import { quotaHype, quotaVisible } from "@/lib/quota";
 import { Badge, QuotaBar } from "./ui";
+import { EarlyBirdNote } from "./early-bird";
+import { currentPrice } from "@/lib/pricing";
 
 /** Ikon & warna per bidang agar katalog lebih hidup */
 export function subjectVisual(bidang: string): { icon: LucideIcon; gradient: string } {
@@ -29,6 +31,9 @@ type Props = {
     gradeLabel: string | null;
     shortDesc: string;
     price: number;
+    earlyPrice?: number | null;
+    earlyStart?: Date | null;
+    earlyEnd?: Date | null;
     priceUnit: string;
     minQuota: number;
     paidCount: number;
@@ -98,9 +103,12 @@ export function ProductCard({ product: p }: Props) {
           </p>
         )}
         <div className="flex items-end justify-between">
-          <p className="min-w-0 text-lg font-extrabold text-navy-900">
-            {formatRupiah(p.price)} <span className="text-xs font-medium text-navy-400">/ {p.priceUnit}</span>
-          </p>
+          <div className="min-w-0">
+            <EarlyBirdNote product={p} className="mb-0.5" />
+            <p className="text-lg font-extrabold text-navy-900">
+              {formatRupiah(currentPrice(p))} <span className="text-xs font-medium text-navy-400">/ {p.priceUnit}</span>
+            </p>
+          </div>
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-50 text-brand-600 transition group-hover:translate-x-1 group-hover:bg-brand-600 group-hover:text-white">
             <ArrowRight className="h-4 w-4" />
           </span>

@@ -10,6 +10,7 @@ import { normalizePhone } from "@/lib/utils";
 import { applyRegistrationStatus, generateRegistrationCode } from "@/lib/payments";
 import { createSnapTransaction, getTransactionStatus, mapMidtransStatus, midtransEnabled, simulationEnabled } from "@/lib/midtrans";
 import { setFlash } from "@/lib/flash";
+import { currentPrice } from "@/lib/pricing";
 import type { ActionResult } from "@/lib/action-result";
 import { limitAction } from "@/lib/security";
 
@@ -41,7 +42,8 @@ export async function registerCocAction(_prev: ActionResult | undefined, formDat
   const vip = product.type === "PRIVATE";
   const pkg = vip && d.packageId ? await prisma.productPackage.findFirst({ where: { id: d.packageId, productId: product.id, isActive: true } }) : null;
   if (vip && !pkg) return { error: "Pilih paket pertemuan yang tersedia terlebih dahulu." };
-  const amount = pkg ? pkg.price : product.price;
+  // harga dihitung di server saat mendaftar: early bird bila sedang berlaku, selain itu harga normal
+  const amount = pkg ? pkg.price : currentPrice(product);
 
   const existing = await prisma.registration.findFirst({
     where: { userId: session.userId, productId: product.id, status: vip ? "PENDING" : { in: ["PENDING", "PAID"] } },

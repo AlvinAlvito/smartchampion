@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { statsScope, requirePanel } from "@/lib/session";
 import { getRegistrationStats } from "@/lib/stats";
 import type { ProductType } from "@prisma/client";
-import { JENJANG_LABEL, PRODUCT_TYPE_LABEL, REG_STATUS_LABEL } from "@/lib/constants";
+import { IMPERSONATOR_ROLES, JENJANG_LABEL, PRODUCT_TYPE_LABEL, REG_STATUS_LABEL } from "@/lib/constants";
 import { cn, formatRupiah } from "@/lib/utils";
 import { EmptyState, PageTitle, SectionTitle, StatCard } from "@/components/ui";
 import { Pagination, readPage } from "@/components/pagination";
@@ -237,7 +237,7 @@ export default async function PendaftarPage({ searchParams }: PageProps<"/admin/
         products={editableProducts}
         initialOpenId={openId}
         canAssign={session.role !== "SMARTCHAMPION"}
-        canImpersonate={session.role === "ROOT" || session.role === "ADMIN"}
+        canImpersonate={IMPERSONATOR_ROLES.includes(session.role)}
         canEditEmail={session.role !== "SUPERADMIN"}
       />
       <Pagination basePath="/admin/pendaftar" searchParams={sp} page={page} total={total} noun="peserta" anchor="tabel" />

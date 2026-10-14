@@ -195,7 +195,7 @@ export function UsersTable({ users, meId, canImpersonate, pesertaOnly = false }:
                         message={
                           <>
                             Anda akan melihat dan bertindak sebagai <b>{u.name}</b> ({ROLE_LABEL[u.role]}). Semua perubahan yang Anda lakukan tercatat atas nama
-                            akun ini. Klik <b>Kembali ke superadmin</b> kapan saja untuk kembali.
+                            akun ini. Klik tombol <b>Kembali</b> di pojok bawah kapan saja untuk kembali ke akun Anda.
                           </>
                         }
                         action={() => impersonateAction(u.id)}

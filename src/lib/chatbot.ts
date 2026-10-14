@@ -6,6 +6,7 @@ import { JENJANG_LABEL, PRODUCT_STATUS_LABEL } from "./constants";
 import { formatDate, formatRupiah } from "./utils";
 import { ADMIN_CONTACTS, BOT_NAME } from "./chatbot-config";
 import { quotaVisible } from "./quota";
+import { activeEarlyBird, earlyRangeLabel, type EarlyPriced } from "./pricing";
 import type { CloneContext } from "./admin-bot";
 
 /**
@@ -41,6 +42,14 @@ const TUTOR_ASKED = /tutor|pengajar|pemateri|mentor|pembimbing|guru|diajar|ngaja
 /** kata kunci pencocokan kelas (≥2 huruf agar "sd" ikut terbaca) */
 const keys = (s: string) => new Set(s.toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) ?? []);
 
+/** Harga untuk DATA chatbot: saat early bird berlaku, harga promo + batas waktunya + harga normal */
+function priceText(p: EarlyPriced & { priceUnit: string }) {
+  const eb = activeEarlyBird(p);
+  if (!eb) return `${formatRupiah(p.price)}/${p.priceUnit}`;
+  const until = eb.endAt ? ` ${earlyRangeLabel({ earlyEnd: eb.endAt })}` : "";
+  return `${formatRupiah(eb.price)}/${p.priceUnit} (harga early bird${until}; harga normal ${formatRupiah(eb.normal)}/${p.priceUnit})`;
+}
+
 /** Data otomatis dari sistem — selalu terbaru, tidak perlu diketik ulang admin. */
 export async function buildLiveContext(opts: LiveOptions = {}) {
   const [catalog, tutors, packages] = await Promise.all([
@@ -73,7 +82,7 @@ export async function buildLiveContext(opts: LiveOptions = {}) {
             ? `${p.paidCount}/${p.minQuota} lunas, kuota terpenuhi`
             : `${p.paidCount}/${p.minQuota} lunas, kurang ${p.minQuota - p.paidCount}`;
     return [
-      `- ${p.name} | ${JENJANG_LABEL[p.jenjang]}${p.gradeLabel ? ` ${p.gradeLabel}` : ""} | ${formatRupiah(p.price)}/${p.priceUnit} | ${PRODUCT_STATUS_LABEL[p.status]} | ${kuota}`,
+      `- ${p.name} | ${JENJANG_LABEL[p.jenjang]}${p.gradeLabel ? ` ${p.gradeLabel}` : ""} | ${priceText(p)} | ${PRODUCT_STATUS_LABEL[p.status]} | ${kuota}`,
       p.scheduleInfo ? `jadwal ${p.scheduleInfo}` : "",
       p.startDate ? `mulai ${formatDate(p.startDate)}` : "",
       pengajar.length ? `tutor ${pengajar.join(", ")}` : "",
@@ -89,7 +98,7 @@ export async function buildLiveContext(opts: LiveOptions = {}) {
   let hidden = 0;
   if (opts.classBudget && full.join("\n").length > opts.classBudget) {
     const short = catalog.map(
-      (p) => `- ${p.name} | ${JENJANG_LABEL[p.jenjang]}${p.gradeLabel ? ` ${p.gradeLabel}` : ""} | ${formatRupiah(p.price)}/${p.priceUnit} | ${PRODUCT_STATUS_LABEL[p.status]} | /kelas/${p.slug}`,
+      (p) => `- ${p.name} | ${JENJANG_LABEL[p.jenjang]}${p.gradeLabel ? ` ${p.gradeLabel}` : ""} | ${priceText(p)} | ${PRODUCT_STATUS_LABEL[p.status]} | /kelas/${p.slug}`,
     );
     const order = catalog
       .map((p, i) => {

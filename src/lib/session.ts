@@ -7,6 +7,7 @@ import crypto from "node:crypto";
 import { cache } from "react";
 import { prisma } from "./prisma";
 import { setFlash } from "./flash";
+import { IMPERSONATOR_ROLES } from "./constants";
 
 export const SESSION_COOKIE = "pp_session";
 const SEEN_EVERY_MS = 10 * 60_000;
@@ -79,7 +80,7 @@ export const getSession = cache(async (): Promise<SessionPayload | null> => {
   }
   if (payload.impersonatorId) {
     const imp = await prisma.user.findUnique({ where: { id: payload.impersonatorId }, select: { role: true, isActive: true } });
-    if (!imp || !["ROOT", "ADMIN"].includes(imp.role) || !imp.isActive) return null;
+    if (!imp || !IMPERSONATOR_ROLES.includes(imp.role) || !imp.isActive) return null;
   }
   return { ...payload, name: user.name };
 });

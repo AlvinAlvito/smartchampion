@@ -4,6 +4,8 @@ import { ArrowLeft, ClipboardList, CreditCard, ShieldCheck, UserRound } from "lu
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { formatRupiah } from "@/lib/utils";
+import { EarlyBirdNote } from "@/components/early-bird";
+import { currentPrice } from "@/lib/pricing";
 import { subjectVisual } from "@/components/product-card";
 import { EmptyState } from "@/components/ui";
 import { RegistrationForm } from "./registration-form";
@@ -92,7 +94,8 @@ export default async function DaftarPage({ params, searchParams }: PageProps<"/k
                 </>
               ) : (
                 <>
-                  <p className="relative mt-4 text-3xl font-extrabold">{formatRupiah(product.price)}</p>
+                  <p className="relative mt-4 text-3xl font-extrabold">{formatRupiah(currentPrice(product))}</p>
+                  <EarlyBirdNote product={product} dark className="relative mt-1" />
                   <p className="relative text-sm text-navy-200">
                     per {product.priceUnit}
                     {product.type === "OTHER" ? ` · ${product.sessionCount ?? 1}x pertemuan` : ""}

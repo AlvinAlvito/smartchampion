@@ -127,6 +127,10 @@ model Product {
   type               ProductType   @default(COC)
   price              Int
   priceUnit          String        @default("bulan") @db.VarChar(30)
+  /// Early bird (COC & Lainnya): harga promo yang berlaku earlyStart–earlyEnd (WIB, termasuk hari terakhir); `price` tampil dicoret
+  earlyPrice         Int?
+  earlyStart         DateTime?
+  earlyEnd           DateTime?
   minQuota           Int           @default(15)
   maxQuota           Int?
   /// Tampilan progres kuota di katalog: AUTO (tampil bila ≥ 10 peserta lunas) | ALWAYS | HIDDEN
