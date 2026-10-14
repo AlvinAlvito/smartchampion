@@ -50,6 +50,11 @@ enum RegistrationStatus {
   CANCELLED
 }
 
+enum VoucherType {
+  PERCENT
+  AMOUNT
+}
+
 enum MaterialType {
   PDF
   VIDEO
@@ -89,6 +94,7 @@ model User {
   materials            Material[]
   materialViews        MaterialViewer[]
   sessionViews         SessionViewer[]
+  vouchersCreated      Voucher[]            @relation("VoucherCreator")
   waTemplates          WaTemplate[]
   /// Nomor WhatsApp yang ditautkan admin untuk menu Chat WA (satu nomor per admin)
   waAccount            WaAccount?
@@ -160,6 +166,8 @@ model Product {
   materials     Material[]
   /// Tutor yang mengajar kelas ini (banyak-ke-banyak)
   tutors        Tutor[]             @relation("TutorClasses")
+  /// Voucher yang khusus berlaku untuk kelas ini
+  vouchers      Voucher[]           @relation("VoucherProducts")
   /// Paket pertemuan (khusus VIP Privat), mis. 1x, 4x, 8x
   packages      ProductPackage[]
   results       ClassResult[]
@@ -223,6 +231,10 @@ model Registration {
   packageId       Int?
   sessionsBought  Int?
   sessionsDone    Int                @default(0)
+  /// Voucher yang dipakai saat mendaftar: amount = harga − discount (kode disimpan sebagai jejak walau voucher dihapus)
+  voucherId       Int?
+  voucherCode     String?            @db.VarChar(40)
+  discount        Int                @default(0)
   status          RegistrationStatus @default(PENDING)
   midtransOrderId String?            @unique @db.VarChar(64)
   snapToken       String?            @db.VarChar(128)
@@ -238,10 +250,44 @@ model Registration {
   product Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
   admin   User?           @relation("RegistrationAdmin", fields: [adminId], references: [id], onDelete: SetNull)
   package ProductPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  voucher Voucher?        @relation(fields: [voucherId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([sourceLeadId])
+  @@index([voucherId])
   @@map("registrations")
+}
+
+/// Kode voucher diskon yang dimasukkan peserta saat mendaftar (lihat lib/voucher.ts)
+model Voucher {
+  id          Int         @id @default(autoincrement())
+  /// selalu huruf besar, unik
+  code        String      @unique @db.VarChar(40)
+  description String?     @db.VarChar(255)
+  type        VoucherType
+  /// PERCENT: 1–100 (%) · AMOUNT: potongan rupiah
+  value       Int
+  /// PERCENT: batas potongan maksimal (Rp), kosong = tanpa batas
+  maxDiscount Int?
+  /// harga minimal (sebelum voucher) agar voucher bisa dipakai
+  minAmount   Int?
+  /// batas jumlah pemakaian (pendaftaran menunggu bayar + lunas); kosong = tanpa batas
+  quota       Int?
+  validFrom   DateTime?
+  /// berlaku sampai akhir hari ini (WIB)
+  validUntil  DateTime?
+  isActive    Boolean     @default(true)
+  /// true = semua kelas; false = hanya kelas di `products`
+  allProducts Boolean     @default(true)
+  createdById Int?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  products      Product[]      @relation("VoucherProducts")
+  registrations Registration[]
+  createdBy     User?          @relation("VoucherCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@map("vouchers")
 }
 
 /// Paket pertemuan VIP Privat: jumlah pertemuan + harga total paket (boleh diskon)

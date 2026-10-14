@@ -28,6 +28,7 @@ const TABLES: { sheet: string; model: Prisma.ModelName }[] = [
   { sheet: "Pendaftaran & Transaksi", model: "Registration" },
   { sheet: "Produk", model: "Product" },
   { sheet: "Paket VIP", model: "ProductPackage" },
+  { sheet: "Voucher", model: "Voucher" },
   { sheet: "Jadwal Pertemuan", model: "ClassSession" },
   { sheet: "Absensi", model: "Attendance" },
   { sheet: "Nilai Pertemuan", model: "MeetingScore" },

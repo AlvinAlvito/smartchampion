@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { BookOpen, Bot, BriefcaseBusiness, ClipboardList, Contact, DatabaseBackup, Gamepad2, Globe, GraduationCap, LayoutDashboard, LifeBuoy, LogOut, Megaphone, Menu, MessageSquareHeart, MessagesSquare, PanelLeftClose, PanelLeftOpen, Presentation, Receipt, Send, Trophy, Users, X, type LucideIcon } from "lucide-react";
+import { BookOpen, Bot, BriefcaseBusiness, ClipboardList, Contact, DatabaseBackup, Gamepad2, Globe, GraduationCap, LayoutDashboard, LifeBuoy, LogOut, TicketPercent, Megaphone, Menu, MessageSquareHeart, MessagesSquare, PanelLeftClose, PanelLeftOpen, Presentation, Receipt, Send, Trophy, Users, X, type LucideIcon } from "lucide-react";
 import { logoutAction } from "@/app/actions/auth";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,7 @@ const ITEMS: Item[] = [
   { href: "/admin/pendaftar", label: "Peserta Terdaftar", icon: ClipboardList },
   { href: "/admin/transaksi", label: "Transaksi", icon: Receipt, sales: true },
   { href: "/admin/produk", label: "Produk & Materi", icon: BookOpen },
+  { href: "/admin/voucher", label: "Voucher", icon: TicketPercent },
   { href: "/admin/tutor", label: "Tutor", icon: Presentation },
   { href: "/admin/feedback", label: "Feedback Peserta", icon: MessageSquareHeart },
   { href: "/admin/games", label: "Games", icon: Gamepad2 },

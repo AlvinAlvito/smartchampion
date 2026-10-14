@@ -25,6 +25,9 @@ export type RegRow = {
   email: string;
   source: string;
   amount: number;
+  /** voucher yang dipakai saat mendaftar */
+  voucherCode?: string | null;
+  discount?: number;
   status: string;
   paymentType: string | null;
   midtransOrderId: string | null;
@@ -115,6 +118,7 @@ function RegistrationDialog({
     ],
     ["Dapat info dari", reg.source],
     ["Nominal", formatRupiah(reg.amount)],
+    ...(reg.voucherCode ? ([["Voucher", `${reg.voucherCode} (potongan ${formatRupiah(reg.discount ?? 0)})`]] as [string, React.ReactNode][]) : []),
     ["Metode bayar", reg.paymentType ?? "-"],
     ["Order ID Midtrans", reg.midtransOrderId ?? "-"],
     ["Tanggal daftar", formatDate(reg.createdAt, true)],

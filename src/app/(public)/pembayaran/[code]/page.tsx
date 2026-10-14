@@ -61,6 +61,11 @@ export default async function PembayaranPage({ params }: PageProps<"/pembayaran/
             </span>
             <p className="relative mt-4 text-sm text-white/80">{paid ? "Pembayaran berhasil" : pending ? "Menunggu pembayaran" : "Pendaftaran tidak aktif"}</p>
             <p className="relative text-4xl font-extrabold tracking-tight">{formatRupiah(reg.amount)}</p>
+            {reg.voucherCode && reg.discount > 0 && (
+              <p className="relative mt-1 text-xs text-white/80">
+                sudah termasuk potongan voucher <b className="font-mono">{reg.voucherCode}</b> {formatRupiah(reg.discount)} (harga {formatRupiah(reg.amount + reg.discount)})
+              </p>
+            )}
             <p className="relative mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 font-mono text-xs">
               <Receipt className="h-3.5 w-3.5" /> {reg.code}
             </p>

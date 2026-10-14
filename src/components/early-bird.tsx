@@ -2,17 +2,25 @@ import { Timer } from "lucide-react";
 import { activeEarlyBird, earlyBirdState, earlyRangeLabel, type EarlyPriced } from "@/lib/pricing";
 import { cn, formatRupiah } from "@/lib/utils";
 
-/** Harga normal dicoret + label "Early bird s.d. …" — hanya tampil selama periode early bird berlaku */
+/**
+ * Harga normal dicoret + persentase diskon di sampingnya, lalu label "Early bird · s.d. …".
+ * Diskon % = (harga normal − harga early bird) ÷ harga normal, mis. 100.000 → 50.000 = 50%.
+ * Hanya tampil selama periode early bird berlaku.
+ */
 export function EarlyBirdNote({ product, className, dark = false }: { product: EarlyPriced; className?: string; dark?: boolean }) {
   const eb = activeEarlyBird(product);
   if (!eb) return null;
   return (
-    <span className={cn("flex flex-wrap items-center gap-x-2 gap-y-1", className)}>
-      <s className={cn("text-sm font-semibold", dark ? "text-navy-200" : "text-navy-400")}>{formatRupiah(eb.normal)}</s>
-      <span className="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-extrabold text-white">
-        <Timer className="h-3 w-3" /> Early bird · hemat {eb.percent}%
+    <span className={cn("flex flex-col gap-1", className)}>
+      <span className="flex flex-wrap items-center gap-2">
+        <s className={cn("text-sm font-semibold", dark ? "text-navy-200" : "text-navy-400")}>{formatRupiah(eb.normal)}</s>
+        <span className="rounded-md bg-rose-500 px-1.5 py-0.5 text-xs font-extrabold leading-none text-white shadow-sm shadow-rose-500/30" aria-label={`Diskon ${eb.percent} persen`}>
+          -{eb.percent}%
+        </span>
       </span>
-      {eb.endAt && <span className={cn("text-[11px] font-semibold", dark ? "text-amber-200" : "text-rose-600")}>{earlyRangeLabel({ earlyEnd: eb.endAt })}</span>}
+      <span className={cn("flex items-center gap-1 text-[11px] font-bold", dark ? "text-amber-200" : "text-rose-600")}>
+        <Timer className="h-3 w-3 shrink-0" /> Early bird{eb.endAt ? ` · ${earlyRangeLabel({ earlyEnd: eb.endAt })}` : ""}
+      </span>
     </span>
   );
 }

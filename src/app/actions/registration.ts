@@ -11,6 +11,7 @@ import { applyRegistrationStatus, generateRegistrationCode } from "@/lib/payment
 import { createSnapTransaction, getTransactionStatus, mapMidtransStatus, midtransEnabled, simulationEnabled } from "@/lib/midtrans";
 import { setFlash } from "@/lib/flash";
 import { currentPrice } from "@/lib/pricing";
+import { checkVoucher } from "@/lib/voucher";
 import type { ActionResult } from "@/lib/action-result";
 import { limitAction } from "@/lib/security";
 
@@ -23,6 +24,7 @@ const Schema = z.object({
   email: z.string().trim().toLowerCase().max(160, "Email terlalu panjang").email("Format email tidak valid"),
   parentPhone: z.string().trim().max(20, "Nomor tidak valid").optional(),
   source: z.enum(REGISTRATION_SOURCES, { message: "Pilih dari mana kamu mendapat info" }),
+  voucherCode: z.string().trim().max(40).optional(),
 });
 
 const toLeadSource = registrationLeadSource;
@@ -43,7 +45,7 @@ export async function registerCocAction(_prev: ActionResult | undefined, formDat
   const pkg = vip && d.packageId ? await prisma.productPackage.findFirst({ where: { id: d.packageId, productId: product.id, isActive: true } }) : null;
   if (vip && !pkg) return { error: "Pilih paket pertemuan yang tersedia terlebih dahulu." };
   // harga dihitung di server saat mendaftar: early bird bila sedang berlaku, selain itu harga normal
-  const amount = pkg ? pkg.price : currentPrice(product);
+  const price = pkg ? pkg.price : currentPrice(product);
 
   const existing = await prisma.registration.findFirst({
     where: { userId: session.userId, productId: product.id, status: vip ? "PENDING" : { in: ["PENDING", "PAID"] } },
@@ -54,6 +56,15 @@ export async function registerCocAction(_prev: ActionResult | undefined, formDat
     await setFlash("info", vip ? "Selesaikan dulu pembayaran paket VIP sebelumnya ya." : "Kamu sudah punya pendaftaran untuk kelas ini. Lanjutkan pembayarannya ya.");
     redirect(`/pembayaran/${existing.code}`);
   }
+
+  // voucher diskon (opsional): dicek ulang di server — pratinjau di browser tidak dipercaya
+  let voucher: { voucherId: number; code: string; discount: number } | null = null;
+  if (d.voucherCode) {
+    const v = await checkVoucher({ code: d.voucherCode, productId: product.id, base: price, userId: session.userId });
+    if (!v.ok) return { fieldErrors: { voucherCode: [v.error] } };
+    voucher = v;
+  }
+  const amount = price - (voucher?.discount ?? 0);
 
   const phone = normalizePhone(d.phone)!;
   // Owner sengaja dikosongkan: diisi oleh admin yang benar-benar melayani peserta ini
@@ -74,6 +85,9 @@ export async function registerCocAction(_prev: ActionResult | undefined, formDat
         source: d.source,
         adminId,
         amount,
+        voucherId: voucher?.voucherId ?? null,
+        voucherCode: voucher?.code ?? null,
+        discount: voucher?.discount ?? 0,
         packageId: pkg?.id ?? null,
         sessionsBought: pkg?.sessions ?? null,
       },
@@ -97,7 +111,7 @@ export async function registerCocAction(_prev: ActionResult | undefined, formDat
         nominal: amount,
         lastContact: new Date(),
         nextAction: "Pantau pembayaran; follow-up jika belum bayar H+1",
-        catatan: `Asal sekolah: ${d.school}`,
+        catatan: `Asal sekolah: ${d.school}${voucher ? ` · voucher ${voucher.code} (potongan Rp ${voucher.discount.toLocaleString("id-ID")})` : ""}`,
       },
     }),
   ]);
