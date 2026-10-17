@@ -81,9 +81,9 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
           );
         })}
       </nav>
-      <form className="card mb-4 grid gap-3 sm:grid-cols-[1fr_180px_auto]" action="/admin/produk">
+      <form className="card mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_180px_200px_auto]" action="/admin/produk">
         {filters.tipe && <input type="hidden" name="tipe" value={filters.tipe} />}
-        <div className="relative">
+        <div className="relative sm:col-span-2 lg:col-span-1">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-navy-300" />
           <input name="q" defaultValue={filters.q} placeholder="Cari nama kelas / bidang" className="input pl-10" aria-label="Cari kelas" />
         </div>
@@ -95,7 +95,16 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
             </option>
           ))}
         </select>
-        <div className="flex gap-2">
+        {/* status kelas: draft / pendaftaran dibuka / kelas berjalan / ditutup */}
+        <select name="status" defaultValue={filters.status} className="input" aria-label="Filter status kelas">
+          <option value="">Semua status</option>
+          {Object.entries(PRODUCT_STATUS_LABEL).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
+        <div className="flex gap-2 sm:col-span-2 lg:col-span-1">
           <Link href="/admin/produk" className="btn-ghost" aria-label="Reset filter">
             <RotateCcw className="h-4 w-4" />
           </Link>
@@ -108,7 +117,7 @@ export default async function ProdukPage({ searchParams }: PageProps<"/admin/pro
         <EmptyState
           icon={BookOpen}
           title={query ? "Tidak ada kelas yang cocok" : "Belum ada kelas"}
-          desc={query ? "Coba kata kunci, jenjang, atau jenis produk lain." : "Tambahkan kelas pertama lewat tombol Tambah kelas."}
+          desc={query ? "Coba kata kunci, jenjang, status, atau jenis produk lain." : "Tambahkan kelas pertama lewat tombol Tambah kelas."}
         />
       )}
       {products.length > 0 && (

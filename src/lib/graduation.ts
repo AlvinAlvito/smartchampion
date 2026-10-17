@@ -16,8 +16,10 @@ export async function certificateContent(productId: number, userId: number, prev
     select: { id: true, name: true, bidang: true, jenjang: true, startDate: true, certificateBgUrl: true, certificateConfig: true },
   });
   if (!product) return null;
-  const [background, tutors, sessions] = await Promise.all([
+  const base = readCertificateConfig(product.certificateConfig);
+  const [background, signImage, tutors, sessions] = await Promise.all([
     readCertificateBackground(product.certificateBgUrl),
+    readCertificateBackground(base.signImageUrl),
     prisma.tutor.findMany({
       where: { isPublished: true, classes: { some: { id: productId } } },
       orderBy: [{ urutan: "asc" }, { id: "asc" }],
@@ -29,7 +31,6 @@ export async function certificateContent(productId: number, userId: number, prev
   const first = sessions[0]?.startAt ?? product.startDate;
   const last = sessions[sessions.length - 1]?.endAt ?? first;
   const dates = { mulai: first ? longDate(first) : "-", selesai: last ? longDate(last) : "-" };
-  const base = readCertificateConfig(product.certificateConfig);
   // penanda tangan "Tutor" tanpa nama → otomatis nama tutor kelas
   const config = { ...base, signers: base.signers.map((sg) => (!sg.name && /tutor/i.test(sg.title) && tutors[0] ? { ...sg, name: tutors[0].nama } : sg)) };
 
@@ -77,6 +78,7 @@ export async function certificateContent(productId: number, userId: number, prev
     body: fillPlaceholders(config.body, all),
     number,
     dateLine: config.showDate ? `${config.place ? `${config.place}, ` : ""}${longDate(issuedAt)}` : null,
+    signImage,
   };
   return { config: { ...config, intro: fillPlaceholders(config.intro, all), subtitle: fillPlaceholders(config.subtitle, all) }, data, background, product };
 }

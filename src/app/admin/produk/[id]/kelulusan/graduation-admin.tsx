@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Award, Download, Eye, FileText, ImagePlus, NotebookPen, Save, Send, Undo2, X } from "lucide-react";
+import { Award, Download, Eye, FileText, ImagePlus, NotebookPen, PenLine, Save, Send, Undo2, X } from "lucide-react";
 import {
   issueCertificatesAction,
   revokeCertificateAction,
@@ -10,7 +10,7 @@ import {
   saveResultAction,
   setReportPublishedAction,
 } from "@/app/actions/graduation";
-import { CERT_PLACEHOLDERS, type CertificateConfig } from "@/lib/certificate";
+import { CERT_PLACEHOLDERS, signBoxHeight, signYOf, type CertificateConfig } from "@/lib/certificate";
 import { ATTENDANCE_LABEL, gradeTone } from "@/lib/worksheet-shared";
 import { cn, formatDate } from "@/lib/utils";
 import { ConfirmButton, Modal } from "@/components/modal";
@@ -25,12 +25,24 @@ export function CertificateTemplate({ productId, config, bgUrl }: { productId: n
   const [preview, setPreview] = useState<string | null>(null);
   const [removeBg, setRemoveBg] = useState(false);
   const [nameTop, setNameTop] = useState(config.nameTop);
-  const [signTop, setSignTop] = useState(config.signTop);
+  // tanda tangan: gambar (unggah), posisi tengah (kiri→kanan), posisi baris nama (atas→bawah), lebar
+  const [signPreview, setSignPreview] = useState<string | null>(null);
+  const [removeSign, setRemoveSign] = useState(false);
+  const [signX, setSignX] = useState(config.signX);
+  const [signY, setSignY] = useState(() => Math.round(signYOf(config, !bgUrl) * 2) / 2);
+  const [signWidth, setSignWidth] = useState(config.signWidth);
+  const [signerName, setSignerName] = useState(config.signers[0]?.name ?? "");
+  const [signerTitle, setSignerTitle] = useState(config.signers[0]?.title ?? "");
   const bg = preview ?? (removeBg ? null : bgUrl);
+  const signImg = signPreview ?? (removeSign ? null : config.signImageUrl);
+  // ukuran pratinjau mengikuti halaman A4 lanskap 842×595 pt
+  const boxW = (signWidth / 842) * 100;
+  const boxH = (signBoxHeight(signWidth) / 595) * 100;
   return (
     <form {...formProps} encType="multipart/form-data" className="card space-y-5">
       <input type="hidden" name="productId" value={productId} />
       <input type="hidden" name="removeBackground" value={removeBg ? "1" : "0"} />
+      <input type="hidden" name="removeSignImage" value={removeSign ? "1" : "0"} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 font-bold text-navy-900">
           <Award className="h-5 w-5 text-brand-600" /> Template sertifikat
@@ -44,31 +56,57 @@ export function CertificateTemplate({ productId, config, bgUrl }: { productId: n
         {/* gambar latar + posisi */}
         <div className="space-y-3">
           <span className="label">Gambar latar (A4 lanskap)</span>
-          <div className="relative aspect-[297/210] overflow-hidden rounded-2xl bg-navy-50 ring-1 ring-navy-100">
+          <div className="relative aspect-[297/210] overflow-hidden rounded-2xl bg-navy-50 ring-1 ring-navy-100 [container-type:inline-size]">
             {bg ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={bg} alt="Latar sertifikat" className="absolute inset-0 h-full w-full object-cover" />
             ) : (
+              // desain bawaan; bila ada gambar tanda tangan dipakai versi polos (stempel & tanda tangan lama menyatu di gambar)
               // eslint-disable-next-line @next/next/no-img-element
-              <img src="/brand/sertifikat-bawaan.jpg" alt="Desain sertifikat bawaan POSI" className="absolute inset-0 h-full w-full object-cover" />
+              <img
+                src={signImg ? "/brand/sertifikat-bawaan-polos.jpg" : "/brand/sertifikat-bawaan.jpg"}
+                alt="Desain sertifikat bawaan POSI"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
             )}
-            {/* penanda posisi nama & tanda tangan (hanya untuk gambar latar unggahan) */}
+            {/* penanda posisi nama peserta (hanya untuk gambar latar unggahan) */}
             {bg && (
-              <>
-                <span className="absolute inset-x-6 border-t-2 border-dashed border-brand-500" style={{ top: `${nameTop}%` }}>
-                  <span className="absolute -top-5 left-0 rounded bg-brand-600 px-1.5 text-[10px] font-bold text-white">Nama</span>
-                </span>
-                <span className="absolute inset-x-6 border-t-2 border-dashed border-amber-500" style={{ top: `${signTop}%` }}>
-                  <span className="absolute -top-5 right-0 rounded bg-amber-500 px-1.5 text-[10px] font-bold text-white">Tanda tangan</span>
-                </span>
-              </>
+              <span className="absolute inset-x-6 border-t-2 border-dashed border-brand-500" style={{ top: `${nameTop}%` }}>
+                <span className="absolute -top-5 left-0 rounded bg-brand-600 px-1.5 text-[10px] font-bold text-white">Nama</span>
+              </span>
             )}
+            {/* pratinjau tanda tangan: gambar tepat di atas nama penanda tangan */}
+            <div
+              className={cn("absolute flex items-end justify-center", !signImg && "rounded border-2 border-dashed border-amber-500 bg-amber-200/30")}
+              style={{ left: `${signX - boxW / 2}%`, top: `${signY - boxH}%`, width: `${boxW}%`, height: `${boxH}%` }}
+            >
+              {signImg ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={signImg} alt="Tanda tangan" className="h-full w-full object-contain" />
+              ) : (
+                <span className="m-auto text-center text-[length:1.3cqw] font-bold text-amber-700">tanda tangan</span>
+              )}
+            </div>
+            {/* kota & tanggal ikut blok tanda tangan (desain bawaan) */}
+            {!bg && config.showDate && (
+              <span
+                className="absolute w-[40%] -translate-x-1/2 text-center text-[length:1.3cqw] font-bold text-[#3b2f27]"
+                style={{ left: `${signX}%`, top: `${signY - (signImg ? ((signBoxHeight(signWidth) + 24) / 595) * 100 : (128 / 595) * 100)}%` }}
+              >
+                {config.place ? `${config.place}, ` : ""}tanggal terbit
+              </span>
+            )}
+            <div className="absolute flex w-[40%] -translate-x-1/2 flex-col items-center leading-tight" style={{ left: `${signX}%`, top: `${signY}%` }}>
+              {signerName && <span className="text-[length:1.35cqw] font-bold text-[#3b2f27] underline">{signerName}</span>}
+              {signerTitle && <span className="text-[length:1.15cqw] text-[#5b5048]">{signerTitle}</span>}
+            </div>
           </div>
           {!bg && (
             <p className="rounded-2xl bg-sun-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-sun-200">
               Memakai <b>desain bawaan POSI</b> (sesuai contoh sertifikat): judul, &ldquo;Diserahkan kepada:&rdquo;, logo, stempel & maskot sudah ada di desain.
-              Yang dipakai dari pengaturan: <b>isi keterangan, kota terbit & tanggal, nomor, dan nama penanda tangan 1</b>. Judul, posisi, warna & font hanya
-              berlaku bila Anda mengunggah gambar latar sendiri.
+              Yang dipakai dari pengaturan: <b>isi keterangan, kota terbit & tanggal, nomor, dan penanda tangan</b> (nama, jabatan, gambar tanda tangan &
+              posisinya). Bila gambar tanda tangan diunggah, stempel & tanda tangan lama di desain disembunyikan — unggah gambar tanda tangan (boleh
+              sekaligus stempel) sebagai penggantinya. Judul, posisi nama, warna & font hanya berlaku bila Anda mengunggah gambar latar sendiri.
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2">
@@ -106,18 +144,51 @@ export function CertificateTemplate({ productId, config, bgUrl }: { productId: n
               className="w-full accent-brand-600"
             />
           </Field>
-          <Field label={`Posisi tanda tangan: ${signTop}% dari atas`} htmlFor="signTop">
-            <input
-              id="signTop"
-              name="signTop"
-              type="range"
-              min={40}
-              max={92}
-              value={signTop}
-              onChange={(e) => setSignTop(Number(e.target.value))}
-              className="w-full accent-amber-500"
-            />
-          </Field>
+          <div className="space-y-3 rounded-2xl bg-amber-50/60 p-3 ring-1 ring-amber-100">
+            <p className="flex items-center gap-1.5 text-sm font-bold text-navy-800">
+              <PenLine className="h-4 w-4 text-amber-600" /> Posisi tanda tangan
+            </p>
+            <Field label={`Kiri ↔ kanan: ${signX}% (50% = tengah)`} htmlFor="signX">
+              <input id="signX" name="signX" type="range" min={15} max={85} value={signX} onChange={(e) => setSignX(Number(e.target.value))} className="w-full accent-amber-500" />
+            </Field>
+            <Field label={`Atas ↕ bawah: ${signY}% dari atas (baris nama penanda tangan)`} htmlFor="signY">
+              <input
+                id="signY"
+                name="signY"
+                type="range"
+                min={40}
+                max={96}
+                step={0.5}
+                value={signY}
+                onChange={(e) => setSignY(Number(e.target.value))}
+                className="w-full accent-amber-500"
+              />
+            </Field>
+            <Field label={`Ukuran gambar tanda tangan: ${signWidth} pt`} htmlFor="signWidth">
+              <input
+                id="signWidth"
+                name="signWidth"
+                type="range"
+                min={60}
+                max={260}
+                step={5}
+                value={signWidth}
+                onChange={(e) => setSignWidth(Number(e.target.value))}
+                className="w-full accent-amber-500"
+              />
+            </Field>
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              onClick={() => {
+                setSignX(50);
+                setSignY(Math.round(signYOf({ signY: null, signTop: config.signTop }, !bg) * 2) / 2);
+                setSignWidth(150);
+              }}
+            >
+              <Undo2 className="h-3.5 w-3.5" /> Kembalikan ke tengah bawah
+            </button>
+          </div>
         </div>
 
         {/* teks */}
@@ -159,22 +230,55 @@ export function CertificateTemplate({ productId, config, bgUrl }: { productId: n
               sertifikat
             </label>
           </div>
-          {[0, 1].map((i) => (
-            <div key={i} className="grid grid-cols-2 gap-2 sm:col-span-2">
-              <Field label={`Penanda tangan ${i + 1} — jabatan`} htmlFor={`signerTitle${i}`}>
-                <input
-                  id={`signerTitle${i}`}
-                  name={`signerTitle${i}`}
-                  defaultValue={config.signers[i]?.title ?? ""}
-                  className="input"
-                  placeholder={i === 0 ? "Tutor" : "Direktur (opsional)"}
-                />
-              </Field>
-              <Field label="Nama" htmlFor={`signerName${i}`}>
-                <input id={`signerName${i}`} name={`signerName${i}`} defaultValue={config.signers[i]?.name ?? ""} className="input" />
-              </Field>
+          <div className="grid gap-2 rounded-2xl p-3 ring-1 ring-navy-100 sm:col-span-2 sm:grid-cols-2">
+            <p className="text-sm font-bold text-navy-800 sm:col-span-2">Penanda tangan</p>
+            <Field label="Nama" htmlFor="signerName0" hint="Tampil bergaris bawah di bawah tanda tangan">
+              <input id="signerName0" name="signerName0" value={signerName} onChange={(e) => setSignerName(e.target.value)} maxLength={80} className="input" />
+            </Field>
+            <Field label="Jabatan" htmlFor="signerTitle0" hint="Opsional, mis. Direktur POSI">
+              <input
+                id="signerTitle0"
+                name="signerTitle0"
+                value={signerTitle}
+                onChange={(e) => setSignerTitle(e.target.value)}
+                maxLength={80}
+                className="input"
+                placeholder="opsional"
+              />
+            </Field>
+            <div className="sm:col-span-2">
+              <span className="label">Gambar tanda tangan</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {signImg && (
+                  <span className="grid h-14 w-28 place-items-center rounded-xl bg-[repeating-conic-gradient(#f1f5f9_0_25%,#fff_0_50%)] bg-[length:12px_12px] ring-1 ring-navy-100">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={signImg} alt="Tanda tangan" className="max-h-12 max-w-26 object-contain" />
+                  </span>
+                )}
+                <label className="btn-secondary btn-sm cursor-pointer">
+                  <PenLine className="h-3.5 w-3.5" /> {signImg ? "Ganti tanda tangan" : "Unggah tanda tangan"}
+                  <input
+                    name="signImage"
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      setSignPreview(f ? URL.createObjectURL(f) : null);
+                      if (f) setRemoveSign(false);
+                    }}
+                  />
+                </label>
+                {signImg && (
+                  <button type="button" className="btn-ghost btn-sm text-rose-600" onClick={() => (setSignPreview(null), setRemoveSign(true))}>
+                    <X className="h-3.5 w-3.5" /> Hapus
+                  </button>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-navy-400">PNG berlatar transparan paling bagus (JPG berlatar putih akan menutupi desain). Maks 5 MB.</p>
+              {fe?.signImage && <p className="mt-1 text-xs font-medium text-rose-600">{fe.signImage[0]}</p>}
             </div>
-          ))}
+          </div>
         </div>
       </div>
       <div className="flex justify-end">

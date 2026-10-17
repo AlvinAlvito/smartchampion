@@ -4,6 +4,8 @@
  * dan **teks tebal** (dua bintang).
  * Tanpa gambar latar unggahan → desain bawaan mengikuti contoh sertifikat POSI (assets/certificate/latar-sertifikat.jpg):
  * judul, "Diserahkan kepada:", logo, stempel & maskot sudah ada di latar; yang dipakai dari pengaturan: isi, kota/tanggal, nomor, penanda tangan.
+ * Bila gambar tanda tangan diunggah, desain bawaan memakai versi polos (assets/certificate/latar-sertifikat-polos.jpg) tanpa stempel & tanda tangan
+ * lama, karena keduanya menyatu di gambar dan tidak bisa dipisahkan.
  */
 
 export type CertificateSigner = { name: string; title: string };
@@ -22,11 +24,27 @@ export type CertificateConfig = {
   /** kota penerbitan, mis. "Medan" → "Medan, 12 Oktober 2026" */
   place: string;
   showDate: boolean;
-  /** penanda tangan (0–2), tampil di bawah; kosongkan bila tanda tangan sudah ada di gambar latar */
+  /** penanda tangan (0–1), tampil di tengah bawah; kosongkan bila tanda tangan sudah ada di gambar latar */
   signers: CertificateSigner[];
-  /** posisi vertikal blok tanda tangan, % dari atas */
+  /** lama: posisi atas blok tanda tangan (desain unggahan); dipakai menurunkan signY untuk template lama */
   signTop: number;
+  /** gambar tanda tangan (privat, storage/certificates), PNG transparan disarankan */
+  signImageUrl: string | null;
+  /** posisi tengah blok tanda tangan, % dari kiri */
+  signX: number;
+  /** posisi baris nama penanda tangan, % dari atas (null = bawaan: lihat signYOf) */
+  signY: number | null;
+  /** lebar gambar tanda tangan (pt; halaman A4 lanskap = 842 pt) */
+  signWidth: number;
 };
+
+/** Posisi baris nama penanda tangan (% dari atas). Bawaan: desain POSI 89.4% (seperti sebelumnya), desain unggahan = blok lama signTop. */
+export function signYOf(c: Pick<CertificateConfig, "signY" | "signTop">, sampleDesign: boolean) {
+  if (c.signY != null) return c.signY;
+  return sampleDesign ? 89.4 : Math.min(95, c.signTop + 10.4);
+}
+/** tinggi kotak gambar tanda tangan (pt) — gambar dimuat utuh (contain) di dalamnya */
+export const signBoxHeight = (signWidth: number) => Math.round(signWidth * 0.5);
 
 /** isi bawaan sesuai contoh sertifikat POSI */
 export const DEFAULT_CERTIFICATE_BODY =
@@ -46,6 +64,10 @@ export const DEFAULT_CERTIFICATE: CertificateConfig = {
   showDate: true,
   signers: [{ name: "Fahruroji Panjaitan, S.Pd, M.M", title: "" }],
   signTop: 74,
+  signImageUrl: null,
+  signX: 50,
+  signY: null,
+  signWidth: 150,
 };
 
 export const CERT_PLACEHOLDERS = [
@@ -77,7 +99,7 @@ export function readCertificateConfig(raw: unknown): CertificateConfig {
   const d = DEFAULT_CERTIFICATE;
   const signers = Array.isArray(r.signers)
     ? (r.signers as unknown[])
-        .slice(0, 2)
+        .slice(0, 1)
         .map((x) => {
           const o = (x ?? {}) as Record<string, unknown>;
           return { name: text(o.name, "", 80), title: text(o.title, "", 80) };
@@ -98,6 +120,10 @@ export function readCertificateConfig(raw: unknown): CertificateConfig {
     showDate: typeof r.showDate === "boolean" ? r.showDate : d.showDate,
     signers,
     signTop: clampNum(r.signTop, 40, 92, d.signTop),
+    signImageUrl: typeof r.signImageUrl === "string" && /^\/api\/admin\/sertifikat-bg\/[a-f0-9-]+\.(?:jpg|png)$/.test(r.signImageUrl) ? r.signImageUrl : null,
+    signX: clampNum(r.signX, 15, 85, d.signX),
+    signY: r.signY == null || r.signY === "" ? null : clampNum(r.signY, 40, 96, 89.4),
+    signWidth: clampNum(r.signWidth, 60, 260, d.signWidth),
   };
 }
 

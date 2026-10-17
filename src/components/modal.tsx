@@ -40,21 +40,34 @@ export function Modal({
     () => false,
   );
   const panelRef = useRef<HTMLDivElement>(null);
+  // onClose biasanya fungsi baru di tiap render pemanggil. Disimpan di ref agar efek di bawah HANYA berjalan saat dialog dibuka —
+  // dulu efek ikut berjalan ulang setiap halaman di belakangnya re-render (mengetik, polling chat, refresh) lalu memindahkan fokus
+  // ke tombol pertama (tombol Tutup), sehingga ketikan terputus.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCloseRef.current();
     window.addEventListener("keydown", onKey);
-    // fokus ke field pertama
-    const t = setTimeout(() => panelRef.current?.querySelector<HTMLElement>("input:not([type=hidden]),select,textarea,button")?.focus(), 60);
+    // fokus awal sekali saja: field isian pertama (bukan tombol Tutup); tombol hanya bila dialog tanpa field.
+    // Tidak mengganggu bila pengguna sudah menaruh fokus di dalam dialog.
+    const t = setTimeout(() => {
+      const panel = panelRef.current;
+      if (!panel || panel.contains(document.activeElement)) return;
+      const field = panel.querySelector<HTMLElement>("input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled])");
+      (field ?? panel.querySelector<HTMLElement>("button:not([aria-label=Tutup])"))?.focus();
+    }, 60);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
       clearTimeout(t);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!mounted || !open) return null;
 

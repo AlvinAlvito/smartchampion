@@ -20,8 +20,26 @@ function revalidate(productId: number, slug?: string) {
 /** Simpan template sertifikat (gambar latar + teks & posisi) */
 export async function saveCertificateTemplateAction(_prev: ActionResult | undefined, form: FormData): Promise<ActionResult> {
   await requirePanel();
-  const product = await prisma.product.findUnique({ where: { id: optInt(form, "productId") ?? 0 }, select: { id: true, slug: true, certificateBgUrl: true } });
+  const product = await prisma.product.findUnique({
+    where: { id: optInt(form, "productId") ?? 0 },
+    select: { id: true, slug: true, certificateBgUrl: true, certificateConfig: true },
+  });
   if (!product) return { error: "Kelas tidak ditemukan." };
+  // gambar tanda tangan (disimpan privat seperti gambar latar)
+  let signImageUrl = readCertificateConfig(product.certificateConfig).signImageUrl;
+  const signFile = form.get("signImage");
+  if (signFile instanceof File && signFile.size > 0) {
+    try {
+      const saved = await saveCertificateBackground(signFile);
+      await removeCertificateBackground(signImageUrl);
+      signImageUrl = saved;
+    } catch (e) {
+      return { fieldErrors: { signImage: [(e as Error).message.replace("Gambar latar", "Gambar tanda tangan").replace("Ukuran gambar latar", "Ukuran gambar tanda tangan")] } };
+    }
+  } else if (form.get("removeSignImage") === "1") {
+    await removeCertificateBackground(signImageUrl);
+    signImageUrl = null;
+  }
   let bg = product.certificateBgUrl;
   const file = form.get("background");
   if (file instanceof File && file.size > 0) {
@@ -35,7 +53,8 @@ export async function saveCertificateTemplateAction(_prev: ActionResult | undefi
     await removeCertificateBackground(product.certificateBgUrl);
     bg = null;
   }
-  const signers = [0, 1].map((i) => ({ name: str(form, `signerName${i}`), title: str(form, `signerTitle${i}`) }));
+  // cukup satu penanda tangan
+  const signers = [{ name: str(form, "signerName0"), title: str(form, "signerTitle0") }];
   const config = readCertificateConfig({
     title: str(form, "title"),
     subtitle: str(form, "subtitle"),
@@ -49,7 +68,11 @@ export async function saveCertificateTemplateAction(_prev: ActionResult | undefi
     place: str(form, "place"),
     showDate: form.get("showDate") === "1",
     signers,
-    signTop: Number(form.get("signTop")),
+    signTop: readCertificateConfig(product.certificateConfig).signTop,
+    signImageUrl,
+    signX: Number(form.get("signX")),
+    signY: Number(form.get("signY")),
+    signWidth: Number(form.get("signWidth")),
   });
   await prisma.product.update({ where: { id: product.id }, data: { certificateBgUrl: bg, certificateConfig: config as unknown as Prisma.InputJsonValue } });
   await logActivity({ entity: "GRADUATION", action: "UPDATE", productId: product.id, detail: "template sertifikat" });

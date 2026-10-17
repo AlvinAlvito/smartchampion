@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+/*
+ * Grid tanpa jumlah kolom (mis. "grid gap-6 lg:grid-cols-3" di layar HP) = 1 kolom yang tidak boleh melebihi lebar wadah.
+ * Tanpa ini kolom implisit melebar mengikuti teks terpanjang di dalamnya — teks yang dipotong (truncate) pun ikut dihitung —
+ * sehingga halaman "jebol" ke kanan di HP (mis. leaderboard games dengan nama sekolah panjang).
+ * Ditaruh di layer base: kelas grid-cols-* (layer utilities) tetap menang.
+ */
+@layer base {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* ============================================================
    Design tokens — Smart Champion: putih, kuning (Smarty), biru (Champy)
    brand = biru #1A6F9F · navy = biru tua (teks & latar gelap) · sun = kuning #F9D014
