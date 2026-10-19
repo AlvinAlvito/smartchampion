@@ -238,7 +238,7 @@ export default async function ReportPage({ params }: PageProps<"/dashboard/kelas
               <p className="flex items-center gap-2 font-bold text-navy-900">
                 <Award className="h-5 w-5 text-amber-500" /> Sertifikat
               </p>
-              <p className="font-mono text-xs text-navy-500">No. {r.certificate.number}</p>
+              {r.certificate.number && <p className="font-mono text-xs text-navy-500">No. {r.certificate.number}</p>}
               <a href={`/api/sertifikat/${r.product.id}/${me.userId}?dl=1`} className="btn-primary btn-sm w-full">
                 <Download className="h-3.5 w-3.5" /> Unduh sertifikat
               </a>

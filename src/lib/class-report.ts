@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "./prisma";
 import { getClassRecap } from "./class-recap";
 import { JENJANG_LABEL } from "./constants";
-import { PREDIKAT } from "./certificate";
+import { PREDIKAT, printedNumber, readCertificateConfig } from "./certificate";
 import { formatDate } from "./utils";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -37,7 +37,7 @@ export async function getStudentReport(productId: number, userId: number) {
   const [product, tutors, result, user] = await Promise.all([
     prisma.product.findUnique({
       where: { id: productId },
-      select: { id: true, name: true, slug: true, bidang: true, jenjang: true, gradeLabel: true, level: true, reportPublished: true, startDate: true },
+      select: { id: true, name: true, slug: true, bidang: true, jenjang: true, gradeLabel: true, level: true, reportPublished: true, startDate: true, certificateConfig: true },
     }),
     prisma.tutor.findMany({ where: { isPublished: true, classes: { some: { id: productId } } }, select: { nama: true }, orderBy: [{ urutan: "asc" }, { id: "asc" }] }),
     prisma.classResult.findUnique({ where: { productId_userId: { productId, userId } } }),
@@ -94,7 +94,14 @@ export async function getStudentReport(productId: number, userId: number) {
       classAverage: recap.classAvg,
     },
     note: result?.note ?? null,
-    certificate: result?.certificateNo ? { number: result.certificateNo, name: result.certificateName ?? row.name, issuedAt: result.certificateIssuedAt! } : null,
+    certificate: result?.certificateNo
+      ? {
+          // nomor yang dicetak (khusus peserta / nomor kelas / otomatis lama); kosong = tanpa nomor
+          number: printedNumber(readCertificateConfig(product?.certificateConfig), result.certificateNoCustom, result.certificateNo),
+          name: result.certificateName ?? row.name,
+          issuedAt: result.certificateIssuedAt!,
+        }
+      : null,
   };
 }
 

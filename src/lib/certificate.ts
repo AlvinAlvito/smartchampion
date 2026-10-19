@@ -20,7 +20,10 @@ export type CertificateConfig = {
   nameFont: "script" | "serif" | "sans";
   nameColor: string;
   textColor: string;
+  /** lama: tampilkan nomor otomatis per peserta (dipakai hanya bila `number` belum pernah diisi) */
   showNumber: boolean;
+  /** nomor sertifikat kelas yang diketik admin (sama untuk semua peserta); null = template lama (nomor otomatis) */
+  number: string | null;
   /** kota penerbitan, mis. "Medan" → "Medan, 12 Oktober 2026" */
   place: string;
   showDate: boolean;
@@ -60,6 +63,7 @@ export const DEFAULT_CERTIFICATE: CertificateConfig = {
   nameColor: "#133e57",
   textColor: "#0f2436",
   showNumber: true,
+  number: null,
   place: "Medan",
   showDate: true,
   signers: [{ name: "Fahruroji Panjaitan, S.Pd, M.M", title: "" }],
@@ -116,6 +120,7 @@ export function readCertificateConfig(raw: unknown): CertificateConfig {
     nameColor: color(r.nameColor, d.nameColor),
     textColor: color(r.textColor, d.textColor),
     showNumber: typeof r.showNumber === "boolean" ? r.showNumber : d.showNumber,
+    number: typeof r.number === "string" ? r.number.trim().slice(0, 80) : null,
     place: text(r.place, d.place, 40),
     showDate: typeof r.showDate === "boolean" ? r.showDate : d.showDate,
     signers,
@@ -125,6 +130,17 @@ export function readCertificateConfig(raw: unknown): CertificateConfig {
     signY: r.signY == null || r.signY === "" ? null : clampNum(r.signY, 40, 96, 89.4),
     signWidth: clampNum(r.signWidth, 60, 260, d.signWidth),
   };
+}
+
+/**
+ * Nomor yang dicetak di sertifikat: nomor khusus peserta → nomor kelas dari template → (template lama) nomor otomatis.
+ * String kosong = tidak dicetak.
+ */
+export function printedNumber(c: Pick<CertificateConfig, "number" | "showNumber">, custom: string | null | undefined, auto: string | null | undefined) {
+  const own = custom?.trim();
+  if (own) return own;
+  if (c.number != null) return c.number;
+  return c.showNumber ? (auto ?? "") : "";
 }
 
 export const PREDIKAT: Record<string, string> = { A: "Sangat Baik", B: "Baik", C: "Cukup", D: "Kurang", E: "Perlu Bimbingan" };

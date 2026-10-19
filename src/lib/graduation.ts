@@ -41,7 +41,8 @@ export async function certificateContent(productId: number, userId: number, prev
   if (preview) {
     issuedAt = new Date();
     name = "Nama Peserta Contoh";
-    number = "000/POSI/OSN/CONTOH";
+    // pratinjau: nomor kelas dari template (template lama: contoh nomor otomatis)
+    number = base.number ?? (base.showNumber ? "000/POSI/OSN/CONTOH" : "");
     values = {
       periode: periodText(sessions[0]?.startAt ?? product.startDate, sessions[sessions.length - 1]?.startAt ?? null),
       nilai: "88",

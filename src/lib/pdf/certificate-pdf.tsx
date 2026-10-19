@@ -295,7 +295,7 @@ function CertificateDoc({
               {c.subtitle}
             </Text>
           ) : null}
-          {c.showNumber && data.number ? (
+          {data.number ? (
             <Text
               style={{
                 ...center,
@@ -471,7 +471,7 @@ function SampleCertificate({
               height: H,
             }}
           />
-          {c.showNumber && data.number ? (
+          {data.number ? (
             <Text
               style={{
                 position: "absolute",

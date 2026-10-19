@@ -4,7 +4,7 @@ import { ArrowLeft, Award, BarChart3, CircleCheck, GraduationCap, MessageSquareH
 import { prisma } from "@/lib/prisma";
 import { requirePanel } from "@/lib/session";
 import { getClassRecap } from "@/lib/class-recap";
-import { readCertificateConfig } from "@/lib/certificate";
+import { printedNumber, readCertificateConfig } from "@/lib/certificate";
 import { StatCard } from "@/components/ui";
 import { CertificateTemplate, GraduationTable, ReportPublishToggle, type GradRow } from "./graduation-admin";
 
@@ -22,6 +22,7 @@ export default async function GraduationPage({ params }: PageProps<"/admin/produ
   ]);
   if (!product || !recap) notFound();
   const byUser = new Map(results.map((r) => [r.userId, r]));
+  const config = readCertificateConfig(product.certificateConfig);
   const rows: GradRow[] = recap.rows.map((r) => {
     const res = byUser.get(r.userId);
     return {
@@ -34,7 +35,10 @@ export default async function GraduationPage({ params }: PageProps<"/admin/produ
       present: r.present,
       attendanceRate: r.attendanceRate,
       note: res?.note ?? null,
-      certificate: res?.certificateNo ? { number: res.certificateNo, name: res.certificateName ?? r.name, issuedAt: res.certificateIssuedAt! } : null,
+      customNumber: res?.certificateNoCustom ?? null,
+      certificate: res?.certificateNo
+        ? { number: printedNumber(config, res.certificateNoCustom, res.certificateNo), name: res.certificateName ?? r.name, issuedAt: res.certificateIssuedAt! }
+        : null,
     };
   });
   const issued = rows.filter((r) => r.certificate).length;
@@ -87,8 +91,8 @@ export default async function GraduationPage({ params }: PageProps<"/admin/produ
       </div>
 
       <div className="space-y-6">
-        <CertificateTemplate productId={pid} config={readCertificateConfig(product.certificateConfig)} bgUrl={product.certificateBgUrl} />
-        <GraduationTable productId={pid} rows={rows} startedCount={recap.startedCount} />
+        <CertificateTemplate productId={pid} config={config} bgUrl={product.certificateBgUrl} />
+        <GraduationTable productId={pid} rows={rows} startedCount={recap.startedCount} classNumber={printedNumber(config, null, null)} />
       </div>
     </>
   );

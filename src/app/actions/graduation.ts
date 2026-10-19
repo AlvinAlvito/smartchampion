@@ -64,7 +64,9 @@ export async function saveCertificateTemplateAction(_prev: ActionResult | undefi
     nameFont: str(form, "nameFont"),
     nameColor: str(form, "nameColor"),
     textColor: str(form, "textColor"),
-    showNumber: form.get("showNumber") === "1",
+    // nomor sertifikat kelas diketik admin (kosong = tidak dicetak, kecuali peserta punya nomor khusus)
+    showNumber: true,
+    number: str(form, "number").slice(0, 80),
     place: str(form, "place"),
     showDate: form.get("showDate") === "1",
     signers,
@@ -154,12 +156,14 @@ export async function saveResultAction(_prev: ActionResult | undefined, form: Fo
   if (!paid?.product) return { error: "Peserta tidak terdaftar lunas di kelas ini." };
   const note = str(form, "note").slice(0, 2000) || null;
   const name = str(form, "certificateName").slice(0, 120);
+  // nomor sertifikat khusus peserta ini; kosong = ikut nomor kelas dari template
+  const certificateNoCustom = str(form, "certificateNoCustom").slice(0, 80) || null;
   await prisma.classResult.upsert({
     where: { productId_userId: { productId, userId } },
-    create: { productId, userId, note, ...(name ? { certificateName: name } : {}) },
-    update: { note, ...(name ? { certificateName: name } : {}) },
+    create: { productId, userId, note, certificateNoCustom, ...(name ? { certificateName: name } : {}) },
+    update: { note, certificateNoCustom, ...(name ? { certificateName: name } : {}) },
   });
   await logActivity({ entity: "GRADUATION", action: "UPDATE", productId, label: paid.fullName, detail: "catatan rapor" });
   revalidate(productId, paid.product.slug);
-  return { ok: "Catatan & nama sertifikat disimpan." };
+  return { ok: "Catatan, nama & nomor sertifikat disimpan." };
 }

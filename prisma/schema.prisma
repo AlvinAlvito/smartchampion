@@ -720,7 +720,10 @@ model ClassResult {
   userId              Int
   /// catatan tutor/admin di rapor
   note                String?   @db.Text
+  /// nomor otomatis saat terbit (unik; penanda sertifikat sudah terbit — yang dicetak lihat lib/certificate printedNumber)
   certificateNo       String?   @unique @db.VarChar(80)
+  /// nomor sertifikat khusus peserta ini (diketik admin); kosong = nomor kelas dari template
+  certificateNoCustom String?   @db.VarChar(80)
   /// nama di sertifikat (snapshot saat terbit, bisa dikoreksi admin)
   certificateName     String?   @db.VarChar(120)
   certificateIssuedAt DateTime?

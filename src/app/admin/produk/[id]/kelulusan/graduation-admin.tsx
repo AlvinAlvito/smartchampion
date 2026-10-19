@@ -218,6 +218,18 @@ export function CertificateTemplate({ productId, config, bgUrl }: { productId: n
           <Field label="Warna teks" htmlFor="textColor">
             <input id="textColor" name="textColor" type="color" defaultValue={config.textColor} className="h-10 w-full cursor-pointer rounded-xl" />
           </Field>
+          <Field
+            label="Nomor sertifikat"
+            htmlFor="number"
+            className="sm:col-span-2"
+            hint={
+              config.number == null && config.showNumber
+                ? "Saat ini masih nomor otomatis per peserta (format lama). Isi nomor kelas di sini untuk menggantinya. Kosongkan = tanpa nomor."
+                : "Sama untuk semua peserta kelas ini. Kosongkan bila tidak dicetak. Nomor khusus per peserta: tombol catatan (✎) di tabel peserta."
+            }
+          >
+            <input id="number" name="number" defaultValue={config.number ?? ""} maxLength={80} className="input font-mono" placeholder="mis. 723/POSI/OSN/IX/2026" />
+          </Field>
           <Field label="Kota terbit" htmlFor="place">
             <input id="place" name="place" defaultValue={config.place} className="input" placeholder="mis. Medan" />
           </Field>
@@ -225,10 +237,7 @@ export function CertificateTemplate({ productId, config, bgUrl }: { productId: n
             <label className="flex items-center gap-2">
               <input type="checkbox" name="showDate" value="1" defaultChecked={config.showDate} className="h-4 w-4 accent-brand-600" /> Tampilkan kota & tanggal
             </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" name="showNumber" value="1" defaultChecked={config.showNumber} className="h-4 w-4 accent-brand-600" /> Tampilkan nomor
-              sertifikat
-            </label>
+
           </div>
           <div className="grid gap-2 rounded-2xl p-3 ring-1 ring-navy-100 sm:col-span-2 sm:grid-cols-2">
             <p className="text-sm font-bold text-navy-800 sm:col-span-2">Penanda tangan</p>
@@ -324,10 +333,13 @@ export type GradRow = {
   present: number;
   attendanceRate: number | null;
   note: string | null;
+  /** nomor sertifikat khusus peserta ini (null = ikut nomor kelas) */
+  customNumber: string | null;
+  /** number = nomor yang dicetak ("" = tanpa nomor) */
   certificate: { number: string; name: string; issuedAt: Date } | null;
 };
 
-function ResultDialog({ productId, row, onClose }: { productId: number; row: GradRow; onClose: () => void }) {
+function ResultDialog({ productId, row, classNumber, onClose }: { productId: number; row: GradRow; classNumber: string; onClose: () => void }) {
   const { formProps, pending } = useFormAction(saveResultAction, { onSuccess: onClose });
   return (
     <Modal
@@ -335,7 +347,7 @@ function ResultDialog({ productId, row, onClose }: { productId: number; row: Gra
       onClose={onClose}
       icon={NotebookPen}
       title={`Catatan untuk ${row.name}`}
-      description="Catatan tutor tampil di rapor. Nama di sertifikat bisa dikoreksi (mis. salah ketik)."
+      description="Catatan tutor tampil di rapor. Nama & nomor di sertifikat bisa dikoreksi khusus peserta ini."
       footer={
         <>
           <button type="button" className="btn-ghost" onClick={onClose}>
@@ -363,12 +375,26 @@ function ResultDialog({ productId, row, onClose }: { productId: number; row: Gra
         <Field label="Nama di sertifikat" htmlFor="certificateName" hint="Kosongkan untuk memakai nama pendaftaran.">
           <input id="certificateName" name="certificateName" defaultValue={row.certificate?.name ?? ""} placeholder={row.name} className="input" />
         </Field>
+        <Field
+          label="Nomor sertifikat khusus peserta ini"
+          htmlFor="certificateNoCustom"
+          hint={classNumber ? `Kosongkan untuk memakai nomor kelas: ${classNumber}` : "Kosongkan untuk memakai nomor kelas dari template sertifikat."}
+        >
+          <input
+            id="certificateNoCustom"
+            name="certificateNoCustom"
+            defaultValue={row.customNumber ?? ""}
+            maxLength={80}
+            placeholder={classNumber || "mis. 724/POSI/OSN/IX/2026"}
+            className="input font-mono"
+          />
+        </Field>
       </form>
     </Modal>
   );
 }
 
-export function GraduationTable({ productId, rows, startedCount }: { productId: number; rows: GradRow[]; startedCount: number }) {
+export function GraduationTable({ productId, rows, startedCount, classNumber }: { productId: number; rows: GradRow[]; startedCount: number; classNumber: string }) {
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [editing, setEditing] = useState<GradRow | null>(null);
   const [pending, start] = useTransition();
@@ -453,7 +479,14 @@ export function GraduationTable({ productId, rows, startedCount }: { productId: 
                 <td className="text-xs">
                   {r.certificate ? (
                     <>
-                      <p className="font-mono font-semibold text-emerald-700">{r.certificate.number}</p>
+                      <p className="font-mono font-semibold text-emerald-700">
+                        {r.certificate.number || <span className="font-sans font-normal italic text-navy-400">tanpa nomor</span>}
+                        {r.customNumber && (
+                          <span className="ml-1 rounded bg-amber-100 px-1 font-sans text-[10px] font-bold text-amber-700" title="Nomor khusus peserta ini">
+                            khusus
+                          </span>
+                        )}
+                      </p>
                       <p className="text-navy-400">terbit {formatDate(r.certificate.issuedAt)}</p>
                     </>
                   ) : (
@@ -492,7 +525,7 @@ export function GraduationTable({ productId, rows, startedCount }: { productId: 
                           title="Cabut sertifikat?"
                           message={
                             <>
-                              Sertifikat <b>{r.certificate.number}</b> milik {r.name} akan dicabut dan tidak bisa diunduh peserta.
+                              Sertifikat <b>{r.certificate.number || "(tanpa nomor)"}</b> milik {r.name} akan dicabut dan tidak bisa diunduh peserta.
                             </>
                           }
                           confirmText="Ya, cabut"
@@ -517,7 +550,7 @@ export function GraduationTable({ productId, rows, startedCount }: { productId: 
           </tbody>
         </table>
       </div>
-      {editing && <ResultDialog productId={productId} row={editing} onClose={() => setEditing(null)} />}
+      {editing && <ResultDialog productId={productId} row={editing} classNumber={classNumber} onClose={() => setEditing(null)} />}
     </section>
   );
 }
