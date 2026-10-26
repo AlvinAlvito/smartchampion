@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowRight, Check, Flame, Lightbulb, ListChecks, LogIn, Play, Timer, Volume2, VolumeX, X, Zap } from "lucide-react";
+import { ArrowRight, Check, Flame, Lightbulb, ListChecks, LogIn, Mountain, Play, Timer, Volume2, VolumeX, X, Zap } from "lucide-react";
 import { checkAnswerAction, questionShownAction, startPlayAction, submitScoreAction, takeHintAction, type ScoreResult } from "@/app/actions/games";
 import { useToast } from "@/components/toast";
 import { Spinner } from "@/components/form-buttons";
@@ -83,6 +83,8 @@ export function QuizPlayer(props: {
   bestScore: number | null;
   /** Dipanggil saat mulai/selesai bermain (untuk menyembunyikan leaderboard). */
   onPlayingChange?: (playing: boolean) => void;
+  /** Pilih mode petualangan (soal sama, dimainkan sebagai game lompat-lompat) */
+  onAdventure?: () => void;
 }) {
   const { gameId, questions, secondsPerQuestion } = props;
   const router = useRouter();
@@ -327,9 +329,33 @@ export function QuizPlayer(props: {
             </Link>
           </p>
         )}
-        <button onClick={begin} className="btn-primary w-full py-4 text-base">
-          <Play className="h-5 w-5 fill-current" /> Mulai main
-        </button>
+        {props.onAdventure ? (
+          // pilih cara bermain: soal, pembahasan & skor sama
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <button onClick={begin} className="group rounded-3xl bg-linear-to-br from-sun-300 to-sun-500 p-4 text-left text-navy-950 shadow-lg shadow-sun-500/25 transition hover:-translate-y-0.5">
+              <span className="flex items-center gap-2 text-base font-extrabold">
+                <Play className="h-5 w-5 fill-current" /> Main klasik
+              </span>
+              <span className="mt-1 block text-xs font-semibold text-navy-800/80">Pilih jawaban A/B/C/D secepatnya, ada hitung mundur tiap soal.</span>
+            </button>
+            <button
+              onClick={() => {
+                gameAudio().click();
+                props.onAdventure?.();
+              }}
+              className="group rounded-3xl bg-linear-to-br from-brand-500 to-navy-800 p-4 text-left text-white shadow-lg shadow-brand-700/25 transition hover:-translate-y-0.5"
+            >
+              <span className="flex items-center gap-2 text-base font-extrabold">
+                <Mountain className="h-5 w-5" /> Main petualangan <span className="rounded-full bg-sun-400 px-2 py-0.5 text-[10px] font-black text-navy-950">BARU</span>
+              </span>
+              <span className="mt-1 block text-xs font-semibold text-brand-100">Gerakkan kucing, lompat naik lantai demi lantai & injak tombol jawabannya.</span>
+            </button>
+          </div>
+        ) : (
+          <button onClick={begin} className="btn-primary w-full py-4 text-base">
+            <Play className="h-5 w-5 fill-current" /> Mulai main
+          </button>
+        )}
       </div>
     );
   }

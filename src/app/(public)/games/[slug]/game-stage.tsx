@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { QuizPlayer } from "./quiz-player";
+import { AdventurePlayer } from "./adventure-player";
 
-type QuizProps = Omit<React.ComponentProps<typeof QuizPlayer>, "onPlayingChange">;
+type QuizProps = Omit<React.ComponentProps<typeof QuizPlayer>, "onPlayingChange" | "onAdventure">;
 
 /**
  * Tata letak halaman game. Saat sedang bermain, leaderboard disembunyikan
@@ -12,10 +13,28 @@ type QuizProps = Omit<React.ComponentProps<typeof QuizPlayer>, "onPlayingChange"
  */
 export function GameStage({ quiz, leaderboard }: { quiz: QuizProps; leaderboard: React.ReactNode }) {
   const [playing, setPlaying] = useState(false);
+  // mode petualangan: soal & skor sama, dimainkan sebagai game lompat ke atas
+  const [adventure, setAdventure] = useState(false);
   return (
     <div className={cn("container-page relative z-10 -mt-16 grid gap-6 pb-10", !playing && "lg:grid-cols-3")}>
       <div id="quiz-area" className={cn("scroll-mt-20", playing ? "mx-auto w-full max-w-3xl" : "lg:col-span-2")}>
-        <QuizPlayer {...quiz} onPlayingChange={setPlaying} />
+        {adventure ? (
+          <AdventurePlayer
+            gameId={quiz.gameId}
+            secondsPerQuestion={quiz.secondsPerQuestion}
+            questions={quiz.questions}
+            loggedIn={quiz.loggedIn}
+            canSave={quiz.canSave}
+            loginHref={quiz.loginHref}
+            onPlayingChange={setPlaying}
+            onExit={() => {
+              setAdventure(false);
+              setPlaying(false);
+            }}
+          />
+        ) : (
+          <QuizPlayer {...quiz} onPlayingChange={setPlaying} onAdventure={() => setAdventure(true)} />
+        )}
       </div>
       {!playing && <div className="animate-fade-up">{leaderboard}</div>}
     </div>

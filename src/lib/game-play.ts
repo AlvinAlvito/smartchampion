@@ -7,6 +7,8 @@ import crypto from "node:crypto";
  */
 
 export type PlayAnswer = { choice: number; correct: boolean; elapsedMs: number };
+/** Bintang mode petualangan: posisi dibuat server; seg = jeda antar lantai (0 = tanah → lantai 1) */
+export type PlayStar = { id: string; seg: number; x: number; y: number; taken: boolean };
 export type PlaySession = {
   gameId: number;
   userId: number | null;
@@ -15,6 +17,9 @@ export type PlaySession = {
   answers: Map<number, PlayAnswer>;
   /** petunjuk 50:50 yang sudah dipakai: questionId → indeks opsi yang disembunyikan */
   hints: Map<number, number[]>;
+  /** mode petualangan: bintang (+STAR_POINTS tiap bintang yang diambil) */
+  stars: Map<string, PlayStar>;
+  lastStarAt: number;
   createdAt: number;
 };
 
@@ -32,11 +37,49 @@ function sweep() {
   for (const [k, v] of sessions) if (now - v.createdAt > TTL || sessions.size > MAX_SESSIONS / 2) sessions.delete(k);
 }
 
-export function createPlay(gameId: number, userId: number | null, questionIds: number[]) {
+/** Poin tambahan per bintang (mode petualangan) */
+export const STAR_POINTS = 10;
+
+/** Dunia petualangan (harus sama dengan adventure-player.tsx): jarak antar lantai & tinggi pijakan tengah */
+const GAP = 210;
+const STEP_RISE = 105;
+const W = 360;
+
+/**
+ * 2 bintang acak per jeda antar lantai: satu di atas pijakan tengah, satu melayang di atas lantai.
+ * Semuanya dalam jangkauan lompatan (±120 unit) dari pijakan di bawahnya.
+ */
+function makeStars(floors: number) {
+  const rnd = (a: number, b: number) => a + (crypto.randomInt(1_000_000) / 1_000_000) * (b - a);
+  const stars: PlayStar[] = [];
+  for (let seg = 0; seg <= floors; seg++) {
+    const base = seg * GAP;
+    const left = seg % 2 === 0; // pijakan tengah zig-zag kiri/kanan (sama dengan buildWorld)
+    const [sx1, sx2] = left ? [22, 134] : [226, 338];
+    stars.push({ id: crypto.randomBytes(6).toString("hex"), seg, x: Math.round(rnd(sx1 + 14, sx2 - 14)), y: Math.round(base + STEP_RISE + rnd(55, 95)), taken: false });
+    // bintang lantai: di sisi yang berlawanan dengan pijakan agar perlu sedikit usaha
+    const [fx1, fx2] = left ? [W / 2, W - 24] : [24, W / 2];
+    stars.push({ id: crypto.randomBytes(6).toString("hex"), seg, x: Math.round(rnd(fx1, fx2)), y: Math.round(base + rnd(84, 100)), taken: false });
+  }
+  return stars;
+}
+
+export function createPlay(gameId: number, userId: number | null, questionIds: number[], opts: { adventure?: boolean } = {}) {
   sweep();
   const token = crypto.randomUUID();
-  sessions.set(token, { gameId, userId, questionIds: new Set(questionIds), shownAt: new Map(), answers: new Map(), hints: new Map(), createdAt: Date.now() });
-  return token;
+  const stars = opts.adventure ? makeStars(questionIds.length) : [];
+  sessions.set(token, {
+    gameId,
+    userId,
+    questionIds: new Set(questionIds),
+    shownAt: new Map(),
+    answers: new Map(),
+    hints: new Map(),
+    stars: new Map(stars.map((s) => [s.id, s])),
+    lastStarAt: 0,
+    createdAt: Date.now(),
+  });
+  return { token, stars: stars.map(({ id, seg, x, y }) => ({ id, seg, x, y })) };
 }
 
 export function getPlay(token: string) {

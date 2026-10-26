@@ -145,6 +145,11 @@ export function ResultCelebration({ result, onReplay, canSave }: { result: Score
 
           <p className={cn("mt-4 text-sm font-semibold uppercase tracking-[0.2em]", t.accent)}>Skor kamu</p>
           <p className="text-6xl font-extrabold tabular-nums tracking-tight">{score}</p>
+          {result.stars ? (
+            <p className="mt-1 text-sm font-bold text-amber-200">
+              termasuk ⭐ {result.stars} bintang (+{result.stars * 10})
+            </p>
+          ) : null}
           <h2 className="mt-3 text-xl font-extrabold">{t.title}</h2>
           <p className="mx-auto mt-1 max-w-sm text-sm text-white/75">{t.message}</p>
 

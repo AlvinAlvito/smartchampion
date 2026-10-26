@@ -217,6 +217,43 @@ class GameAudio {
     [0, 0.12, 0.24].forEach((d) => this.tone(330, t + d, 0.08, { type: "square", vol: 0.15 }));
   }
 
+  /* ---------- mode petualangan ---------- */
+  jump() {
+    this.tone(330, this.now(), 0.14, { type: "square", vol: 0.07, slideTo: 720 });
+  }
+  land() {
+    this.tone(140, this.now(), 0.06, { type: "triangle", vol: 0.12, slideTo: 90 });
+  }
+  /** menginjak tombol jawaban */
+  press() {
+    const t = this.now();
+    this.tone(520, t, 0.05, { type: "square", vol: 0.12 });
+    this.tone(260, t + 0.05, 0.08, { type: "square", vol: 0.1 });
+  }
+  /** jawaban salah: siraman air (desis menurun) */
+  splash() {
+    const t = this.now();
+    for (let i = 0; i < 8; i++) this.hat(t + i * 0.035, 0.09, this.sfx);
+    this.tone(900, t, 0.35, { type: "sine", vol: 0.06, slideTo: 300 });
+  }
+  /** jawaban salah: semburan api (gemuruh) */
+  burn() {
+    const t = this.now();
+    for (let i = 0; i < 10; i++) this.hat(t + i * 0.03, 0.07, this.sfx);
+    this.tone(110, t, 0.45, { type: "sawtooth", vol: 0.1, slideTo: 60 });
+  }
+  /** ambil bintang */
+  coin() {
+    const t = this.now();
+    this.tone(N.B5, t, 0.07, { type: "square", vol: 0.12 });
+    this.tone(N.E5 * 2, t + 0.07, 0.18, { type: "square", vol: 0.12 });
+  }
+  /** pijakan naik terbuka */
+  unlockUp() {
+    const t = this.now();
+    [0, 0.07, 0.14].forEach((d, i) => this.tone(N.C5 * (1 + i * 0.26), t + d, 0.09, { type: "triangle", vol: 0.12 }));
+  }
+
   /** Jingle hasil sesuai tingkat skor. */
   result(tier: "rendah" | "normal" | "tinggi" | "tertinggi") {
     const t = this.now() + 0.05;

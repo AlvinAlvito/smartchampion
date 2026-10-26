@@ -3,7 +3,7 @@
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { getSession, isPanel } from "@/lib/session";
-import { createPlay, endPlay, getPlay } from "@/lib/game-play";
+import { createPlay, endPlay, getPlay, STAR_POINTS } from "@/lib/game-play";
 import { limitAction } from "@/lib/security";
 import { getUserRank } from "@/lib/queries";
 import { GAME_HINTS } from "@/lib/game-rules";
@@ -15,8 +15,10 @@ function pointsFor(base: number, secondsLimit: number, elapsedMs: number) {
   return Math.round(base * (0.5 + 0.5 * (remaining / limitMs)));
 }
 
-/** Mulai sesi bermain: server mencatat soal, waktu tampil, dan jawaban (anti-curang). */
-export async function startPlayAction(gameId: number): Promise<{ token?: string; error?: string }> {
+export type AdventureStar = { id: string; seg: number; x: number; y: number };
+
+/** Mulai sesi bermain: server mencatat soal, waktu tampil, dan jawaban (anti-curang). Mode petualangan juga mendapat posisi bintang. */
+export async function startPlayAction(gameId: number, mode: "classic" | "adventure" = "classic"): Promise<{ token?: string; stars?: AdventureStar[]; error?: string }> {
   const limited = await limitAction("game-start", null, 40, 10 * 60_000);
   if (limited) return { error: limited };
   const session = await getSession();
@@ -26,13 +28,29 @@ export async function startPlayAction(gameId: number): Promise<{ token?: string;
   });
   // game draft hanya bisa dicoba staf (preview)
   if (!game || (!game.isPublished && !isPanel(session?.role))) return { error: "Game tidak ditemukan." };
-  return {
-    token: createPlay(
-      game.id,
-      session?.userId ?? null,
-      game.questions.map((q) => q.id),
-    ),
-  };
+  const play = createPlay(
+    game.id,
+    session?.userId ?? null,
+    game.questions.map((q) => q.id),
+    { adventure: mode === "adventure" },
+  );
+  return { token: play.token, stars: play.stars };
+}
+
+/**
+ * Ambil bintang (mode petualangan, +STAR_POINTS). Bintang di jeda lantai ke-n baru sah setelah n soal dijawab
+ * (lantai di bawahnya terbuka), setiap bintang sekali, dan jeda antar ambil minimal 120 ms.
+ */
+export async function collectStarAction(token: string, starId: string): Promise<{ ok: boolean; stars: number }> {
+  const play = getPlay(token);
+  const star = play?.stars.get(String(starId));
+  const count = () => (play ? [...play.stars.values()].filter((s) => s.taken).length : 0);
+  if (!play || !star || star.taken) return { ok: false, stars: count() };
+  const now = Date.now();
+  if (play.answers.size < star.seg || now - play.lastStarAt < 120) return { ok: false, stars: count() };
+  star.taken = true;
+  play.lastStarAt = now;
+  return { ok: true, stars: count() };
 }
 
 /** Dipanggil saat soal tampil di layar → dasar pengukuran waktu jawab di server. */
@@ -111,10 +129,15 @@ export async function submitScoreAction(token: string): Promise<ScoreResult | { 
     }
   }
 
+  // bonus bintang (mode petualangan)
+  const stars = [...play.stars.values()].filter((s) => s.taken).length;
+  score += stars * STAR_POINTS;
+
   const total = game.questions.length;
   const ratio = total ? correct / total : 0;
   const base: ScoreResult = {
     score,
+    stars,
     correct,
     total,
     saved: false,
@@ -150,6 +173,8 @@ export async function submitScoreAction(token: string): Promise<ScoreResult | { 
 export type ScoreTier = "rendah" | "normal" | "tinggi" | "tertinggi";
 export type ScoreResult = {
   score: number;
+  /** bintang yang diambil (mode petualangan; sudah termasuk dalam score) */
+  stars?: number;
   correct: number;
   total: number;
   saved: boolean;
