@@ -453,3 +453,90 @@ html[data-readonly] a[href^="/api/"] {
   100% { transform: translateY(70px) rotate(300deg); opacity: 0; }
 }
 @keyframes cat-cloud { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-4px); } }
+
+/* ---------- Mode Duel (duel-player.tsx) ---------- */
+.duel-idle { animation: duel-idle 2.2s ease-in-out infinite; }
+.duel-boss-idle { animation: duel-idle 1.6s ease-in-out infinite; }
+.duel-enter { animation: duel-enter 0.9s cubic-bezier(0.22, 1.3, 0.36, 1) both; }
+.duel-dash { animation: duel-dash 0.75s cubic-bezier(0.3, 0.7, 0.3, 1) both; }
+.duel-dash-big { animation: duel-dash 0.95s cubic-bezier(0.3, 0.7, 0.3, 1) both; }
+.duel-hurt { animation: duel-hurt 0.6s ease-out 0.28s both; }
+.duel-lunge { animation: duel-lunge 0.75s cubic-bezier(0.3, 0.7, 0.3, 1) both; }
+.duel-ouch { animation: duel-ouch 0.6s ease-out 0.28s both; }
+.duel-block { animation: duel-block 0.6s ease-out 0.28s both; }
+.duel-defeat { animation: duel-defeat 1s ease-in both; }
+.duel-flee { animation: duel-flee 0.7s ease-in both; }
+.duel-quake { animation: duel-quake 0.45s linear 0.3s both; }
+.duel-flash { animation: duel-flash 0.7s ease-out 0.3s both; }
+.duel-pop { animation: duel-pop 0.9s ease-out 0.3s both; }
+.duel-float { animation: duel-float 1.3s ease-out both; }
+.duel-banner { animation: duel-banner 1.4s ease-out both; }
+.duel-slash path { stroke-dasharray: 140; stroke-dashoffset: 140; animation: duel-slash 0.35s ease-out 0.3s forwards; }
+.duel-slash path:nth-child(2) { animation-delay: 0.38s; }
+.duel-slash path:nth-child(3) { animation-delay: 0.46s; }
+@media (prefers-reduced-motion: reduce) {
+  .duel-idle, .duel-boss-idle, .duel-quake { animation: none; }
+}
+@keyframes duel-idle { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(-6px) scale(1.03, 0.97); } }
+@keyframes duel-enter { from { transform: translateX(120%) scale(0.5); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes duel-dash {
+  0% { transform: translateX(0); }
+  15% { transform: translateX(-12px) scale(0.95, 1.05); }
+  40%, 55% { transform: translateX(var(--dash, 160px)) scale(1.08); }
+  100% { transform: translateX(0); }
+}
+@keyframes duel-lunge {
+  0% { transform: translateX(0); }
+  15% { transform: translateX(12px); }
+  40%, 55% { transform: translateX(calc(var(--dash, 160px) * -0.8)) scale(1.1); }
+  100% { transform: translateX(0); }
+}
+@keyframes duel-hurt {
+  0%, 100% { transform: translateX(0); filter: none; }
+  15% { transform: translateX(14px) rotate(6deg); filter: brightness(2.4) saturate(0.2); }
+  35% { transform: translateX(-10px) rotate(-4deg); filter: brightness(1.5) sepia(1) hue-rotate(-50deg) saturate(4); }
+  60% { transform: translateX(6px); filter: brightness(1.8) saturate(0.3); }
+  80% { transform: translateX(-3px); filter: none; }
+}
+@keyframes duel-ouch {
+  0%, 100% { transform: translateX(0); filter: none; }
+  20% { transform: translateX(-14px) rotate(-8deg); filter: sepia(1) hue-rotate(-50deg) saturate(5); }
+  45% { transform: translateX(8px) rotate(4deg); }
+  70% { transform: translateX(-4px); filter: none; }
+}
+@keyframes duel-block { 0%, 100% { transform: none; } 30% { transform: translateX(-8px) scale(0.96); } }
+@keyframes duel-defeat {
+  0% { transform: none; opacity: 1; }
+  25% { transform: scale(1.15) rotate(-8deg); filter: brightness(2.5); opacity: 1; }
+  100% { transform: translateY(40px) scale(0) rotate(220deg); opacity: 0; }
+}
+@keyframes duel-flee { 0% { transform: none; opacity: 1; } 20% { transform: translateX(-10px) scaleX(-1); } 100% { transform: translateX(150%) scaleX(-1); opacity: 0; } }
+@keyframes duel-quake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-6px, 3px); }
+  40% { transform: translate(5px, -4px); }
+  60% { transform: translate(-4px, 2px); }
+  80% { transform: translate(3px, -1px); }
+}
+@keyframes duel-flash { 0% { opacity: 0; } 15% { opacity: 0.9; } 100% { opacity: 0; } }
+@keyframes duel-pop { 0% { transform: scale(0.2) rotate(-20deg); opacity: 0; } 25% { transform: scale(1.3) rotate(8deg); opacity: 1; } 70% { opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+@keyframes duel-float {
+  0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; }
+  18% { transform: translate(-50%, -14px) scale(1.25); opacity: 1; }
+  75% { opacity: 1; }
+  100% { transform: translate(-50%, -64px) scale(1); opacity: 0; }
+}
+@keyframes duel-banner { 0% { transform: scale(2.2); opacity: 0; } 20% { transform: scale(1); opacity: 1; } 80% { opacity: 1; } 100% { transform: scale(0.9); opacity: 0; } }
+@keyframes duel-slash { to { stroke-dashoffset: 0; opacity: 0; } }
+
+/* ---------- Mode Balap Gokart (kart-player.tsx) ---------- */
+.kart-road { animation: kart-road 0.3s linear infinite; }
+.kart-road-slow { animation: kart-road 1.4s linear infinite; }
+.kart-idle { animation: kart-idle 0.14s linear infinite alternate; }
+.kart-flame { animation: kart-flame 0.12s linear infinite alternate; }
+@media (prefers-reduced-motion: reduce) {
+  .kart-road, .kart-road-slow, .kart-idle, .kart-flame { animation: none; }
+}
+@keyframes kart-road { to { background-position-x: -48px; } }
+@keyframes kart-idle { from { transform: translateY(0); } to { transform: translateY(-1.5px); } }
+@keyframes kart-flame { from { transform: scaleX(0.8); opacity: 0.8; } to { transform: scaleX(1.25); opacity: 1; } }

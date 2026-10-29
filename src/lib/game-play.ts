@@ -17,8 +17,10 @@ export type PlaySession = {
   answers: Map<number, PlayAnswer>;
   /** petunjuk 50:50 yang sudah dipakai: questionId → indeks opsi yang disembunyikan */
   hints: Map<number, number[]>;
-  /** mode petualangan: bintang (+STAR_POINTS tiap bintang yang diambil) */
+  /** bonus pungut (bintang petualangan / ikan lari lintasan): poin per item & jeda minimal antar ambil */
   stars: Map<string, PlayStar>;
+  starPoints: number;
+  starGapMs: number;
   lastStarAt: number;
   createdAt: number;
 };
@@ -37,8 +39,14 @@ function sweep() {
   for (const [k, v] of sessions) if (now - v.createdAt > TTL || sessions.size > MAX_SESSIONS / 2) sessions.delete(k);
 }
 
+export type { PlayMode } from "@/lib/game-rules";
+import type { PlayMode } from "@/lib/game-rules";
+
 /** Poin tambahan per bintang (mode petualangan) */
 export const STAR_POINTS = 10;
+/** Poin per ikan (mode lari lintasan): 4 ikan × 5 = 20 poin per segmen, sama dengan 2 bintang × 10 di petualangan */
+export const FISH_POINTS = 5;
+const FISH_PER_SEG = 4;
 
 /** Dunia petualangan (harus sama dengan adventure-player.tsx): jarak antar lantai & tinggi pijakan tengah */
 const GAP = 210;
@@ -64,10 +72,19 @@ function makeStars(floors: number) {
   return stars;
 }
 
-export function createPlay(gameId: number, userId: number | null, questionIds: number[], opts: { adventure?: boolean } = {}) {
+/** Ikan lari lintasan: posisinya diatur browser (jalur & jarak), server hanya mencatat id & segmennya */
+function makeFish(questions: number) {
+  const fish: PlayStar[] = [];
+  for (let seg = 0; seg <= questions; seg++)
+    for (let i = 0; i < FISH_PER_SEG; i++) fish.push({ id: crypto.randomBytes(6).toString("hex"), seg, x: 0, y: 0, taken: false });
+  return fish;
+}
+
+export function createPlay(gameId: number, userId: number | null, questionIds: number[], opts: { mode?: PlayMode } = {}) {
   sweep();
   const token = crypto.randomUUID();
-  const stars = opts.adventure ? makeStars(questionIds.length) : [];
+  const runner = opts.mode === "runner";
+  const stars = opts.mode === "adventure" ? makeStars(questionIds.length) : runner ? makeFish(questionIds.length) : [];
   sessions.set(token, {
     gameId,
     userId,
@@ -76,6 +93,9 @@ export function createPlay(gameId: number, userId: number | null, questionIds: n
     answers: new Map(),
     hints: new Map(),
     stars: new Map(stars.map((s) => [s.id, s])),
+    starPoints: runner ? FISH_POINTS : STAR_POINTS,
+    // ikan berderet di satu jalur & bisa dipungut cepat beruntun saat "gas" → jeda lebih pendek
+    starGapMs: runner ? 40 : 120,
     lastStarAt: 0,
     createdAt: Date.now(),
   });

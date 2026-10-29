@@ -3,10 +3,11 @@
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { getSession, isPanel } from "@/lib/session";
-import { createPlay, endPlay, getPlay, STAR_POINTS } from "@/lib/game-play";
+import { createPlay, endPlay, getPlay, type PlayMode } from "@/lib/game-play";
 import { limitAction } from "@/lib/security";
 import { getUserRank } from "@/lib/queries";
-import { GAME_HINTS } from "@/lib/game-rules";
+import { GAME_HINTS, isPremiumMode } from "@/lib/game-rules";
+import { hasGameAccess } from "@/lib/game-access";
 
 /** Skor per soal: poin penuh jika dijawab instan, minimal 50% jika benar di detik terakhir. */
 function pointsFor(base: number, secondsLimit: number, elapsedMs: number) {
@@ -18,7 +19,7 @@ function pointsFor(base: number, secondsLimit: number, elapsedMs: number) {
 export type AdventureStar = { id: string; seg: number; x: number; y: number };
 
 /** Mulai sesi bermain: server mencatat soal, waktu tampil, dan jawaban (anti-curang). Mode petualangan juga mendapat posisi bintang. */
-export async function startPlayAction(gameId: number, mode: "classic" | "adventure" = "classic"): Promise<{ token?: string; stars?: AdventureStar[]; error?: string }> {
+export async function startPlayAction(gameId: number, mode: PlayMode = "classic"): Promise<{ token?: string; stars?: AdventureStar[]; error?: string }> {
   const limited = await limitAction("game-start", null, 40, 10 * 60_000);
   if (limited) return { error: limited };
   const session = await getSession();
@@ -28,11 +29,13 @@ export async function startPlayAction(gameId: number, mode: "classic" | "adventu
   });
   // game draft hanya bisa dicoba staf (preview)
   if (!game || (!game.isPublished && !isPanel(session?.role))) return { error: "Game tidak ditemukan." };
+  // mode berbayar: hanya untuk peserta yang pernah membeli produk (staf panel boleh mencoba)
+  if (isPremiumMode(mode) && !(await hasGameAccess(session))) return { error: "🔒 Mode ini terkunci. Silakan daftar kelas untuk membuka semua games." };
   const play = createPlay(
     game.id,
     session?.userId ?? null,
     game.questions.map((q) => q.id),
-    { adventure: mode === "adventure" },
+    { mode: mode === "adventure" || mode === "runner" ? mode : "classic" },
   );
   return { token: play.token, stars: play.stars };
 }
@@ -47,7 +50,7 @@ export async function collectStarAction(token: string, starId: string): Promise<
   const count = () => (play ? [...play.stars.values()].filter((s) => s.taken).length : 0);
   if (!play || !star || star.taken) return { ok: false, stars: count() };
   const now = Date.now();
-  if (play.answers.size < star.seg || now - play.lastStarAt < 120) return { ok: false, stars: count() };
+  if (play.answers.size < star.seg || now - play.lastStarAt < play.starGapMs) return { ok: false, stars: count() };
   star.taken = true;
   play.lastStarAt = now;
   return { ok: true, stars: count() };
@@ -129,15 +132,16 @@ export async function submitScoreAction(token: string): Promise<ScoreResult | { 
     }
   }
 
-  // bonus bintang (mode petualangan)
+  // bonus pungut: bintang (petualangan) / ikan (lari lintasan)
   const stars = [...play.stars.values()].filter((s) => s.taken).length;
-  score += stars * STAR_POINTS;
+  score += stars * play.starPoints;
 
   const total = game.questions.length;
   const ratio = total ? correct / total : 0;
   const base: ScoreResult = {
     score,
     stars,
+    starPoints: play.starPoints,
     correct,
     total,
     saved: false,
@@ -173,8 +177,10 @@ export async function submitScoreAction(token: string): Promise<ScoreResult | { 
 export type ScoreTier = "rendah" | "normal" | "tinggi" | "tertinggi";
 export type ScoreResult = {
   score: number;
-  /** bintang yang diambil (mode petualangan; sudah termasuk dalam score) */
+  /** bintang / ikan yang diambil (sudah termasuk dalam score) */
   stars?: number;
+  /** poin per item: 10 = bintang (petualangan), 5 = ikan (lari lintasan) */
+  starPoints?: number;
   correct: number;
   total: number;
   saved: boolean;

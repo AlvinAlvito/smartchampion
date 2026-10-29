@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowRight, Check, Flame, Lightbulb, ListChecks, LogIn, Mountain, Play, Timer, Volume2, VolumeX, X, Zap } from "lucide-react";
+import { ArrowRight, CarFront, Lock, Check, Coffee, Dices, Fish, Flame, Footprints, Goal, Grid3x3, Lightbulb, ListChecks, LogIn, Mountain, Play, Swords, Timer, Volume2, VolumeX, X, Zap } from "lucide-react";
 import { checkAnswerAction, questionShownAction, startPlayAction, submitScoreAction, takeHintAction, type ScoreResult } from "@/app/actions/games";
 import { useToast } from "@/components/toast";
 import { Spinner } from "@/components/form-buttons";
@@ -12,7 +12,8 @@ import { ResultCelebration } from "./result-celebration";
 import { cn } from "@/lib/utils";
 import { MathText } from "@/components/math-text";
 import { GameCat } from "@/components/game-cat";
-import { catMood, GAME_HINTS, type CatMood } from "@/lib/game-rules";
+import { catMood, GAME_HINTS, isPremiumMode, type CatMood } from "@/lib/game-rules";
+import { Modal } from "@/components/modal";
 
 type Question = { id: number; text: string; options: string[]; points: number };
 type Phase = "intro" | "countdown" | "question" | "feedback" | "finishing" | "result";
@@ -81,10 +82,26 @@ export function QuizPlayer(props: {
   canSave: boolean;
   loginHref: string;
   bestScore: number | null;
+  /** 6 mode berbayar (labirin, ular tangga, kafe, memancing, penalti, gokart) terbuka? = pernah membeli produk */
+  allModes?: boolean;
   /** Dipanggil saat mulai/selesai bermain (untuk menyembunyikan leaderboard). */
   onPlayingChange?: (playing: boolean) => void;
   /** Pilih mode petualangan (soal sama, dimainkan sebagai game lompat-lompat) */
   onAdventure?: () => void;
+  /** Pilih mode lari lintasan (soal sama, dimainkan sebagai game lari ganti jalur) */
+  onRunner?: () => void;
+  /** Pilih mode duel (soal sama, dimainkan sebagai pertarungan bergiliran melawan monster) */
+  onDuel?: () => void;
+  /** Pilih mode labirin (soal sama, kucing menjelajah labirin & melewati pintu jawaban) */
+  onMaze?: () => void;
+  /** Pilih mode ular tangga / kafe kucing / memancing (soal sama) */
+  onBoard?: () => void;
+  onCafe?: () => void;
+  onFishing?: () => void;
+  /** Pilih mode adu penalti (soal sama, tiap soal = satu tendangan penalti) */
+  onPenalty?: () => void;
+  /** Pilih mode balap gokart (soal sama, tiap soal = satu putaran balap) */
+  onKart?: () => void;
 }) {
   const { gameId, questions, secondsPerQuestion } = props;
   const router = useRouter();
@@ -104,6 +121,7 @@ export function QuizPlayer(props: {
   const [explanation, setExplanation] = useState<string | null>(null);
   const [correctSoFar, setCorrectSoFar] = useState(0);
   const [result, setResult] = useState<ScoreResult | null>(null);
+  const [lockedOpen, setLockedOpen] = useState(false);
   const startedAt = useRef(0);
   const playToken = useRef<string | null>(null); // sesi bermain di server (anti-curang)
   const locked = useRef(false);
@@ -331,26 +349,112 @@ export function QuizPlayer(props: {
         )}
         {props.onAdventure ? (
           // pilih cara bermain: soal, pembahasan & skor sama
+          <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <button onClick={begin} className="group rounded-3xl bg-linear-to-br from-sun-300 to-sun-500 p-4 text-left text-navy-950 shadow-lg shadow-sun-500/25 transition hover:-translate-y-0.5">
-              <span className="flex items-center gap-2 text-base font-extrabold">
-                <Play className="h-5 w-5 fill-current" /> Main klasik
-              </span>
-              <span className="mt-1 block text-xs font-semibold text-navy-800/80">Pilih jawaban A/B/C/D secepatnya, ada hitung mundur tiap soal.</span>
-            </button>
-            <button
-              onClick={() => {
-                gameAudio().click();
-                props.onAdventure?.();
-              }}
-              className="group rounded-3xl bg-linear-to-br from-brand-500 to-navy-800 p-4 text-left text-white shadow-lg shadow-brand-700/25 transition hover:-translate-y-0.5"
-            >
-              <span className="flex items-center gap-2 text-base font-extrabold">
-                <Mountain className="h-5 w-5" /> Main petualangan <span className="rounded-full bg-sun-400 px-2 py-0.5 text-[10px] font-black text-navy-950">BARU</span>
-              </span>
-              <span className="mt-1 block text-xs font-semibold text-brand-100">Gerakkan kucing, lompat naik lantai demi lantai & injak tombol jawabannya.</span>
-            </button>
+            {[
+              { key: "classic", on: undefined, icon: Play, label: "Main klasik", desc: "Pilih jawaban A/B/C/D secepatnya, ada hitung mundur tiap soal.", tone: "245,179,1", dark: true },
+              { key: "adventure", on: props.onAdventure, icon: Mountain, label: "Main petualangan", desc: "Gerakkan kucing, lompat naik lantai demi lantai & injak tombol jawabannya.", tone: "26,95,138" },
+              { key: "runner", on: props.onRunner, icon: Footprints, label: "Main lari lintasan", desc: "Kucing berlari! Pindah jalur & lewati gerbang jawaban yang benar.", tone: "5,150,105" },
+              { key: "duel", on: props.onDuel, icon: Swords, label: "Main duel", desc: "Lawan monster & bos! Jawaban benar = serangan, santai untuk soal yang butuh mikir.", tone: "190,24,93" },
+              { key: "maze", on: props.onMaze, icon: Grid3x3, label: "Main labirin", desc: "Kucing tersesat di labirin gelap! Jelajahi lorong & masuk pintu jawaban yang benar — awas jebakan.", tone: "55,48,163" },
+              { key: "board", on: props.onBoard, icon: Dices, label: "Main ular tangga", desc: "Jawab benar untuk lempar dadu! Naik tangga, hindari ular, sampai FINISH.", tone: "234,88,12", isNew: true },
+              { key: "cafe", on: props.onCafe, icon: Coffee, label: "Main kafe kucing", desc: "Sajikan hidangan jawaban yang benar untuk pelanggan — jangan sampai mereka cemberut!", tone: "219,39,119", isNew: true },
+              { key: "penalty", on: props.onPenalty, icon: Goal, label: "Main adu penalti", desc: "Kucing FC vs kiper Babi FC! Jawaban benar = tendangan pasti GOL.", tone: "21,128,61", isNew: true },
+              { key: "kart", on: props.onKart, icon: CarFront, label: "Main balap gokart", desc: "Balapan melawan Dodo, Rara & Popo! Jawab benar = ngebut & menyalip.", tone: "185,28,28", isNew: true },
+              { key: "fishing", on: props.onFishing, icon: Fish, label: "Main memancing", desc: "Pancing ikan berlabel jawaban yang benar & isi akuariummu. Paling santai!", tone: "3,105,161", isNew: true },
+            ].map(
+              (m) =>
+                (m.on || m.key === "classic") && (
+                  <button
+                    key={m.key}
+                    aria-label={!props.allModes && isPremiumMode(m.key) ? `${m.label} (terkunci)` : undefined}
+                    onClick={() => {
+                      if (m.key === "classic") return begin();
+                      gameAudio().click();
+                      // mode berbayar terkunci → ajak daftar kelas
+                      if (!props.allModes && isPremiumMode(m.key)) return setLockedOpen(true);
+                      m.on?.();
+                    }}
+                    className={cn(
+                      "group relative isolate min-h-28 overflow-hidden rounded-3xl p-4 text-left shadow-lg ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-xl",
+                      m.dark ? "text-navy-950" : "text-white",
+                    )}
+                  >
+                    {!props.allModes && isPremiumMode(m.key) && (
+                      <>
+                        <span aria-hidden className="absolute inset-0 z-0 bg-navy-950/45 backdrop-grayscale" />
+                        <span className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full bg-white/95 text-navy-900 shadow-lg ring-2 ring-white/60 transition group-hover:scale-110">
+                          <Lock className="h-5 w-5" />
+                        </span>
+                      </>
+                    )}
+                    {/* cuplikan layar game sebagai latar; gradasi warna mode agar teks tetap terbaca */}
+                    <span
+                      aria-hidden
+                      className="absolute inset-0 -z-10 bg-cover bg-center transition duration-500 group-hover:scale-105"
+                      style={{ backgroundImage: `url(/games/modes/${m.key}.jpg)` }}
+                    />
+                    <span
+                      aria-hidden
+                      className="absolute inset-0 -z-10"
+                      style={{ background: `linear-gradient(90deg, rgba(${m.tone},0.97) 0%, rgba(${m.tone},0.88) 42%, rgba(${m.tone},0.35) 78%, rgba(${m.tone},0.15) 100%)` }}
+                    />
+                    <span className="relative z-10 flex flex-wrap items-center gap-2 text-base font-extrabold drop-shadow-sm">
+                      <m.icon className={cn("h-5 w-5", m.key === "classic" && "fill-current")} /> {m.label}
+                      {m.isNew && <span className="rounded-full bg-sun-400 px-2 py-0.5 text-[10px] font-black text-navy-950">BARU</span>}
+                      {!props.allModes && isPremiumMode(m.key) && <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-black text-navy-900">🔒 TERKUNCI</span>}
+                    </span>
+                    <span className={cn("relative z-10 mt-1 block max-w-[78%] text-xs font-semibold", m.dark ? "text-navy-900/85" : "text-white/90 drop-shadow-sm")}>{m.desc}</span>
+                  </button>
+                ),
+            )}
           </div>
+          {!props.allModes && (
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-100">
+              <Lock className="h-5 w-5 shrink-0" />
+              <p className="min-w-0 flex-1">
+                <b>6 game terkunci.</b> Silakan daftar kelas untuk membuka semua games — cukup sekali membeli produk apa pun (COC, VIP Privat, ACLB, dll.).
+              </p>
+              <Link href="/kelas" className="btn-primary py-2">
+                Lihat katalog kelas <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          )}
+          <Modal
+            open={lockedOpen}
+            onClose={() => setLockedOpen(false)}
+            title="Game ini masih terkunci 🔒"
+            icon={Lock}
+            size="sm"
+            footer={
+              <>
+                <button type="button" className="btn-ghost" onClick={() => setLockedOpen(false)}>
+                  Nanti saja
+                </button>
+                <Link href="/kelas" className="btn-primary">
+                  Lihat katalog kelas <ArrowRight className="h-4 w-4" />
+                </Link>
+              </>
+            }
+          >
+            <div className="space-y-3 text-sm text-navy-700">
+              <p>
+                <b>Silakan daftar kelas untuk membuka semua games.</b> Labirin, ular tangga, kafe kucing, memancing, adu penalti & balap gokart terbuka
+                setelah kamu membeli minimal 1 produk (COC, VIP Privat, ACLB, dll.).
+              </p>
+              <p className="text-navy-500">Mode klasik, petualangan, lari lintasan & duel tetap bisa dimainkan gratis.</p>
+              {!props.loggedIn && (
+                <p className="rounded-xl bg-brand-50 p-3 text-brand-800">
+                  Sudah pernah daftar kelas?{" "}
+                  <Link href={props.loginHref} className="font-bold underline">
+                    Masuk dulu
+                  </Link>{" "}
+                  agar semua game terbuka.
+                </p>
+              )}
+            </div>
+          </Modal>
+          </>
         ) : (
           <button onClick={begin} className="btn-primary w-full py-4 text-base">
             <Play className="h-5 w-5 fill-current" /> Mulai main

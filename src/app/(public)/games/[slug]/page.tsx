@@ -4,6 +4,7 @@ import { ArrowLeft, Crown, Medal, Trophy } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSession, isPanel } from "@/lib/session";
 import { getLeaderboard, getUserRank } from "@/lib/queries";
+import { hasGameAccess } from "@/lib/game-access";
 import { JENJANG_LABEL } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { GameStage } from "./game-stage";
@@ -28,10 +29,12 @@ export default async function GamePage({ params }: PageProps<"/games/[slug]">) {
   const staff = isPanel(session?.role);
   if (!game || (!game.isPublished && !staff)) notFound();
 
-  const [leaderboard, myBest, myRank] = await Promise.all([
+  const [leaderboard, myBest, myRank, allModes] = await Promise.all([
     getLeaderboard(game.id, 10),
     session ? prisma.gameScore.findFirst({ where: { gameId: game.id, userId: session.userId }, orderBy: { score: "desc" } }) : null,
     session?.role === "PESERTA" ? getUserRank(game.id, session.userId) : null,
+    // 6 mode berbayar terbuka bila pernah membeli produk (staf panel selalu)
+    hasGameAccess(session),
   ]);
   const questions = game.questions.map((q) => ({ id: q.id, text: q.text, options: q.options as string[], points: q.points }));
   const podium = [leaderboard[1], leaderboard[0], leaderboard[2]];
@@ -69,6 +72,7 @@ export default async function GamePage({ params }: PageProps<"/games/[slug]">) {
           canSave: session?.role === "PESERTA" && game.isPublished,
           loginHref: `/login?next=/games/${game.slug}`,
           bestScore: myBest?.score ?? null,
+          allModes,
         }}
         leaderboard={
         <aside className="card h-fit p-0!">

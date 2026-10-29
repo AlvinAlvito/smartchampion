@@ -248,6 +248,53 @@ class GameAudio {
     this.tone(N.B5, t, 0.07, { type: "square", vol: 0.12 });
     this.tone(N.E5 * 2, t + 0.07, 0.18, { type: "square", vol: 0.12 });
   }
+  /* ---------- mode lari lintasan ---------- */
+  /** pindah jalur */
+  whoosh() {
+    this.tone(500, this.now(), 0.08, { type: "triangle", vol: 0.06, slideTo: 260 });
+  }
+  /** menabrak rintangan */
+  bump() {
+    const t = this.now();
+    this.tone(120, t, 0.16, { type: "square", vol: 0.14, slideTo: 70 });
+    this.hat(t, 0.08, this.sfx);
+  }
+  /** gas ⚡ */
+  boost() {
+    this.tone(300, this.now(), 0.3, { type: "sawtooth", vol: 0.06, slideTo: 900 });
+  }
+  /** duel: cakaran kucing (kritikal = lebih nyaring) */
+  slash(crit = false) {
+    const t = this.now();
+    this.hat(t, 0.06, this.sfx);
+    this.tone(crit ? 1400 : 900, t, 0.12, { type: "sawtooth", vol: 0.1, slideTo: 200 });
+    if (crit) this.tone(1800, t + 0.08, 0.14, { type: "square", vol: 0.08, slideTo: 400 });
+  }
+  /** duel: jurus spesial (petir) */
+  thunder() {
+    const t = this.now();
+    this.tone(90, t, 0.5, { type: "sawtooth", vol: 0.16, slideTo: 40 });
+    [0, 0.05, 0.1].forEach((d) => this.hat(t + d, 0.12, this.sfx));
+    this.tone(1600, t, 0.25, { type: "square", vol: 0.07, slideTo: 300 });
+  }
+  /** duel: monster menyerang */
+  roar() {
+    const t = this.now();
+    this.tone(140, t, 0.32, { type: "sawtooth", vol: 0.14, slideTo: 80 });
+    this.tone(95, t + 0.05, 0.3, { type: "square", vol: 0.08, slideTo: 60 });
+  }
+  /** duel: perisai menahan serangan */
+  clang() {
+    const t = this.now();
+    this.tone(1320, t, 0.25, { type: "triangle", vol: 0.12 });
+    this.tone(1980, t + 0.02, 0.2, { type: "triangle", vol: 0.07 });
+  }
+  /** duel: nyawa bertambah / perisai didapat */
+  heal() {
+    const t = this.now();
+    [0, 0.08, 0.16, 0.24].forEach((d, i) => this.tone(N.C5 * Math.pow(2, (i * 4) / 12), t + d, 0.12, { type: "triangle", vol: 0.12 }));
+  }
+
   /** pijakan naik terbuka */
   unlockUp() {
     const t = this.now();
