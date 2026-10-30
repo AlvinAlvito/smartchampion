@@ -6,6 +6,7 @@ import { Crown, Medal, RotateCcw, Sparkles, Star, ThumbsUp, TrendingUp, Trophy }
 import type { ScoreResult, ScoreTier } from "@/app/actions/games";
 import { Confetti } from "@/components/confetti";
 import { cn } from "@/lib/utils";
+import { useResultExtras } from "./result-extras";
 
 const TIER: Record<
   ScoreTier,
@@ -123,6 +124,7 @@ export function ResultCelebration({ result, onReplay, canSave }: { result: Score
   const t = TIER[result.tier];
   const score = useCountUp(result.score);
   const accuracy = result.total ? Math.round((result.correct / result.total) * 100) : 0;
+  const extras = useResultExtras();
 
   return (
     <div className="card relative overflow-hidden p-0!">
@@ -193,10 +195,12 @@ export function ResultCelebration({ result, onReplay, canSave }: { result: Score
         <button onClick={onReplay} className="btn-primary">
           <RotateCcw className="h-4 w-4" /> Main lagi
         </button>
-        <Link href="/games" className="btn-secondary">
-          Game lainnya
+        <Link href={extras?.backHref ?? "/games"} className="btn-secondary">
+          {extras ? "Pilih soal lain" : "Game lainnya"}
         </Link>
       </div>
+      {/* alur Arena Game: papan peringkat (sudah termasuk skor ini) tampil setelah hasil */}
+      {extras && <div className="border-t border-navy-50 bg-navy-50/40 p-4 sm:p-5">{extras.leaderboard}</div>}
     </div>
   );
 }

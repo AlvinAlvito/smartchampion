@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { getSession, isPanel } from "@/lib/session";
 import { getLeaderboard, getUserRank } from "@/lib/queries";
 import { hasGameAccess } from "@/lib/game-access";
+import { isPremiumMode } from "@/lib/game-rules";
+import { modeOf } from "../modes";
 import { JENJANG_LABEL } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { GameStage } from "./game-stage";
@@ -19,8 +21,9 @@ export async function generateMetadata({ params }: PageProps<"/games/[slug]">) {
   return pageMeta({ title: `${g.title} — Game Edukasi ${g.subject}`, description: g.description || `Main game edukasi ${g.subject} di Pelatihan POSI.`, path: `/games/${slug}` });
 }
 
-export default async function GamePage({ params }: PageProps<"/games/[slug]">) {
+export default async function GamePage({ params, searchParams }: PageProps<"/games/[slug]">) {
   const { slug } = await params;
+  const sp = await searchParams;
   const session = await getSession();
   const game = await prisma.game.findUnique({
     where: { slug },
@@ -38,6 +41,9 @@ export default async function GamePage({ params }: PageProps<"/games/[slug]">) {
   ]);
   const questions = game.questions.map((q) => ({ id: q.id, text: q.text, options: q.options as string[], points: q.points }));
   const podium = [leaderboard[1], leaderboard[0], leaderboard[2]];
+  // mode yang dipilih di Arena Game (/games?mode=…); mode terkunci tanpa akses → klasik
+  const picked = modeOf(sp.mode);
+  const mode = picked && (allModes || !isPremiumMode(picked.key)) ? picked : undefined;
 
   return (
     <div className="relative">
@@ -45,8 +51,11 @@ export default async function GamePage({ params }: PageProps<"/games/[slug]">) {
         <div className="pointer-events-none absolute inset-0 bg-grid [mask-image:radial-gradient(ellipse_at_top,black_20%,transparent_70%)]" />
         <div className="pointer-events-none absolute -left-10 top-10 h-72 w-72 animate-blob rounded-full bg-brand-500/30 blur-3xl" />
         <div className="container-page relative animate-fade-up">
-          <Link href="/games" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-200 transition hover:gap-2.5 hover:text-white">
-            <ArrowLeft className="h-4 w-4" /> Semua games
+          <Link
+            href={mode ? `/games?mode=${mode.key}` : "/games"}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-200 transition hover:gap-2.5 hover:text-white"
+          >
+            <ArrowLeft className="h-4 w-4" /> {mode ? `Pilih soal lain · mode ${mode.name}` : "Arena game"}
           </Link>
           <div className="mt-5 flex items-center gap-4">
             <span className="grid h-20 w-20 animate-float place-items-center rounded-[28px] bg-white/10 text-5xl ring-1 ring-white/20">{game.emoji}</span>
@@ -63,6 +72,7 @@ export default async function GamePage({ params }: PageProps<"/games/[slug]">) {
       </section>
 
       <GameStage
+        initialMode={mode?.key}
         quiz={{
           gameId: game.id,
           description: game.description,

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowRight, CarFront, Lock, Check, Coffee, Dices, Fish, Flame, Footprints, Goal, Grid3x3, Lightbulb, ListChecks, LogIn, Mountain, Play, Swords, Timer, Volume2, VolumeX, X, Zap } from "lucide-react";
+import { ArrowRight, Lock, Check, Flame, Lightbulb, ListChecks, LogIn, Play, Timer, Volume2, VolumeX, X, Zap } from "lucide-react";
 import { checkAnswerAction, questionShownAction, startPlayAction, submitScoreAction, takeHintAction, type ScoreResult } from "@/app/actions/games";
 import { useToast } from "@/components/toast";
 import { Spinner } from "@/components/form-buttons";
@@ -14,6 +14,7 @@ import { MathText } from "@/components/math-text";
 import { GameCat } from "@/components/game-cat";
 import { catMood, GAME_HINTS, isPremiumMode, type CatMood } from "@/lib/game-rules";
 import { Modal } from "@/components/modal";
+import { MODES } from "../modes";
 
 type Question = { id: number; text: string; options: string[]; points: number };
 type Phase = "intro" | "countdown" | "question" | "feedback" | "finishing" | "result";
@@ -82,6 +83,8 @@ export function QuizPlayer(props: {
   canSave: boolean;
   loginHref: string;
   bestScore: number | null;
+  /** langsung mulai (dari tombol Main di Arena Game) */
+  autoStart?: boolean;
   /** 6 mode berbayar (labirin, ular tangga, kafe, memancing, penalti, gokart) terbuka? = pernah membeli produk */
   allModes?: boolean;
   /** Dipanggil saat mulai/selesai bermain (untuk menyembunyikan leaderboard). */
@@ -102,6 +105,10 @@ export function QuizPlayer(props: {
   onPenalty?: () => void;
   /** Pilih mode balap gokart (soal sama, tiap soal = satu putaran balap) */
   onKart?: () => void;
+  /** Pilih mode stasiun luar angkasa (jelajahi stasiun, soal ada di terminal misi) */
+  onStation?: () => void;
+  /** Pilih mode platformer gulir-samping (jongkok di terowongan jawaban) */
+  onPlatform?: () => void;
 }) {
   const { gameId, questions, secondsPerQuestion } = props;
   const router = useRouter();
@@ -317,6 +324,35 @@ export function QuizPlayer(props: {
     }
   };
 
+  /** tombol mode → pindah ke pemain mode tersebut (klasik dimulai langsung di sini) */
+  const modeHandler = (key: string) =>
+    ({
+      adventure: props.onAdventure,
+      runner: props.onRunner,
+      duel: props.onDuel,
+      maze: props.onMaze,
+      board: props.onBoard,
+      cafe: props.onCafe,
+      penalty: props.onPenalty,
+      kart: props.onKart,
+      platform: props.onPlatform,
+      station: props.onStation,
+      fishing: props.onFishing,
+    })[key];
+
+  // dari Arena Game (tombol Main): langsung mulai tanpa layar siap
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!props.autoStart || autoStarted.current) return;
+    // penanda diset saat benar-benar mulai (StrictMode memasang efek dua kali & membatalkan timer pertama)
+    const t = setTimeout(() => {
+      autoStarted.current = true;
+      void begin();
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (!questions.length) return <div className="card text-sm text-navy-400">Game ini belum memiliki soal.</div>;
 
   /* -------- Intro -------- */
@@ -351,18 +387,7 @@ export function QuizPlayer(props: {
           // pilih cara bermain: soal, pembahasan & skor sama
           <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {[
-              { key: "classic", on: undefined, icon: Play, label: "Main klasik", desc: "Pilih jawaban A/B/C/D secepatnya, ada hitung mundur tiap soal.", tone: "245,179,1", dark: true },
-              { key: "adventure", on: props.onAdventure, icon: Mountain, label: "Main petualangan", desc: "Gerakkan kucing, lompat naik lantai demi lantai & injak tombol jawabannya.", tone: "26,95,138" },
-              { key: "runner", on: props.onRunner, icon: Footprints, label: "Main lari lintasan", desc: "Kucing berlari! Pindah jalur & lewati gerbang jawaban yang benar.", tone: "5,150,105" },
-              { key: "duel", on: props.onDuel, icon: Swords, label: "Main duel", desc: "Lawan monster & bos! Jawaban benar = serangan, santai untuk soal yang butuh mikir.", tone: "190,24,93" },
-              { key: "maze", on: props.onMaze, icon: Grid3x3, label: "Main labirin", desc: "Kucing tersesat di labirin gelap! Jelajahi lorong & masuk pintu jawaban yang benar — awas jebakan.", tone: "55,48,163" },
-              { key: "board", on: props.onBoard, icon: Dices, label: "Main ular tangga", desc: "Jawab benar untuk lempar dadu! Naik tangga, hindari ular, sampai FINISH.", tone: "234,88,12", isNew: true },
-              { key: "cafe", on: props.onCafe, icon: Coffee, label: "Main kafe kucing", desc: "Sajikan hidangan jawaban yang benar untuk pelanggan — jangan sampai mereka cemberut!", tone: "219,39,119", isNew: true },
-              { key: "penalty", on: props.onPenalty, icon: Goal, label: "Main adu penalti", desc: "Kucing FC vs kiper Babi FC! Jawaban benar = tendangan pasti GOL.", tone: "21,128,61", isNew: true },
-              { key: "kart", on: props.onKart, icon: CarFront, label: "Main balap gokart", desc: "Balapan melawan Dodo, Rara & Popo! Jawab benar = ngebut & menyalip.", tone: "185,28,28", isNew: true },
-              { key: "fishing", on: props.onFishing, icon: Fish, label: "Main memancing", desc: "Pancing ikan berlabel jawaban yang benar & isi akuariummu. Paling santai!", tone: "3,105,161", isNew: true },
-            ].map(
+            {MODES.map((info) => ({ ...info, on: modeHandler(info.key) })).map(
               (m) =>
                 (m.on || m.key === "classic") && (
                   <button
@@ -401,6 +426,7 @@ export function QuizPlayer(props: {
                     />
                     <span className="relative z-10 flex flex-wrap items-center gap-2 text-base font-extrabold drop-shadow-sm">
                       <m.icon className={cn("h-5 w-5", m.key === "classic" && "fill-current")} /> {m.label}
+                      {m.fav && <span className="rounded-full bg-linear-to-r from-rose-500 to-pink-500 px-2 py-0.5 text-[10px] font-black text-white shadow ring-1 ring-white/60">⭐ FAVORIT</span>}
                       {m.isNew && <span className="rounded-full bg-sun-400 px-2 py-0.5 text-[10px] font-black text-navy-950">BARU</span>}
                       {!props.allModes && isPremiumMode(m.key) && <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-black text-navy-900">🔒 TERKUNCI</span>}
                     </span>

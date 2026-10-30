@@ -55,6 +55,8 @@ export type PlayerProps = {
   loginHref: string;
   onExit: () => void;
   onPlayingChange?: (playing: boolean) => void;
+  /** langsung mulai (dari tombol Main di Arena Game) */
+  autoStart?: boolean;
 };
 
 export const LETTERS = ["A", "B", "C", "D", "E"];

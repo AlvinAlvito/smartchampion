@@ -190,6 +190,7 @@ export function MazePlayer(props: {
   canSave: boolean;
   loginHref: string;
   onExit: () => void;
+  autoStart?: boolean;
   onPlayingChange?: (playing: boolean) => void;
 }) {
   const { gameId, questions, secondsPerQuestion, onPlayingChange } = props;
@@ -1045,6 +1046,19 @@ export function MazePlayer(props: {
     if (process.env.NODE_ENV === "production") return;
     (window as unknown as { __maze: unknown }).__maze = game.current;
   });
+
+  // dari Arena Game (tombol Main): langsung mulai tanpa layar siap
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!props.autoStart || autoStarted.current) return;
+    // penanda diset saat benar-benar mulai (StrictMode memasang efek dua kali & membatalkan timer pertama)
+    const t = setTimeout(() => {
+      autoStarted.current = true;
+      void begin();
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!questions.length) return <div className="card text-sm text-navy-400">Game ini belum memiliki soal.</div>;
 

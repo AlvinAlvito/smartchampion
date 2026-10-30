@@ -340,6 +340,19 @@ export function KartPlayer(props: PlayerProps) {
     };
   });
 
+  // dari Arena Game (tombol Main): langsung mulai tanpa layar siap
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!props.autoStart || autoStarted.current) return;
+    // penanda diset saat benar-benar mulai (StrictMode memasang efek dua kali & membatalkan timer pertama)
+    const t = setTimeout(() => {
+      autoStarted.current = true;
+      void begin();
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (!questions.length)
     return (
       <div className="card text-sm text-navy-400">
